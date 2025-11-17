@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tenant (Multi-tenancy)
+model Tenant {
+  id              String   @id @default(cuid())
+  slug            String   @unique // ex: "locadora-xyz"
+  domain          String?  @unique // custom domain opcional
+  name            String   // "Locadora XYZ"
+  logo            String?
+  primaryColor    String   @default("#000000")
+
+  // Dados de contato
+  email           String
+  phone           String
+  address         String?
+
+  // Integrações
+  whatsappToken   String?  @db.Text
+  whatsappPhone   String?
+  googleCalendarId String?
+  stripeAccountId String?
+
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  users           User[]
+  equipments      Equipment[]
+  bookings        Booking[]
+  customers       Customer[]
+  activityLogs    ActivityLog[]
+  apiKeys         ApiKey[]
+  webhooks        Webhook[]
+}
+
+// Usuário (Admin da locadora)
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          Role     @default(ADMIN)
+
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  activityLogs  ActivityLog[]
+  autoLoginTokens AutoLoginToken[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Token temporário para auto-login após registro
+model AutoLoginToken {
+  id          String   @id @default(cuid())
+  token       String   @unique // Token único e seguro
+  used        Boolean  @default(false)
+  expiresAt   DateTime // Expira em 30 minutos
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([token, used, expiresAt])
+}
+
+enum Role {
+  SUPER_ADMIN  // ODuo - acesso total ao sistema
+  ADMIN        // Dono da locadora - controle total do tenant
+  MANAGER      // Gerente - cria e edita (não deleta)
+  OPERATOR     // Operador - cria reservas, vê clientes e equipamentos
+  VIEWER       // Visualizador - apenas leitura
+}
+
+// Equipamento
+model Equipment {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?  @db.Text
+  category      String
+  images        String[]
+  pricePerHour  Float?
+  pricePerDay   Float
+  quantity      Int      @default(1)
+  status        EquipmentStatus @default(AVAILABLE)
+
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  bookings      Booking[]
+  unavailableDates UnavailableDate[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, status, category])
+}
+
+enum EquipmentStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  INACTIVE
+}
+
+// Bloqueios de data
+model UnavailableDate {
+  id           String   @id @default(cuid())
+  startDate    DateTime
+  endDate      DateTime
+  reason       String?
+
+  equipmentId  String
+  equipment    Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+}
+
+// Cliente
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?
+  phone        String
+  cpfCnpj      String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  notes        String?  @db.Text
+
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  bookings     Booking[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+// Locação
+model Booking {
+  id              String   @id @default(cuid())
+  bookingNumber   String   @unique @default(cuid())
+
+  startDate       DateTime
+  endDate         DateTime
+  startTime       String?
+  endTime         String?
+
+  totalPrice      Float
+  status          BookingStatus @default(PENDING)
+
+  equipmentId     String
+  equipment       Equipment @relation(fields: [equipmentId], references: [id])
+
+  customerId      String
+  customer        Customer  @relation(fields: [customerId], references: [id])
+
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  paymentIntentId String?
+  paidAt          DateTime?
+
+  contractUrl     String?
+  notes           String?  @db.Text
+
+  confirmationSent Boolean @default(false)
+  reminderSent     Boolean @default(false)
+
+  googleEventId   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, status, startDate])
+  @@index([equipmentId, startDate, endDate])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+// Registro de Atividades (Auditoria)
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String   // "CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT"
+  entity      String   // "USER", "CUSTOMER", "EQUIPMENT", "BOOKING"
+  entityId    String?  // ID do registro afetado
+  description String   @db.Text // Descrição detalhada da ação
+  metadata    Json?    // Dados adicionais (antes/depois, etc)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
+
+// API Keys para integração
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String   // Nome descritivo: "Integração Mobile App"
+  key         String   @unique // A chave API em si (hash)
+  prefix      String   // Primeiros caracteres para identificação (ex: "sk_test_abc...")
+
+  permissions Json?    // Permissões específicas da key
+
+  lastUsedAt  DateTime?
+  expiresAt   DateTime? // Opcional: data de expiração
+
+  active      Boolean  @default(true)
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, active])
+  @@index([key])
+}
+
+// Webhooks para notificações
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String   // Nome descritivo
+  url         String   // URL do webhook
+  events      String[] // ["booking.created", "booking.updated", "equipment.created"]
+
+  secret      String?  // Secret para validar requests
+
+  active      Boolean  @default(true)
+
+  lastTriggeredAt DateTime?
+  failureCount    Int @default(0)
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, active])
+}
