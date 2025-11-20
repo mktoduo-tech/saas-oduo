@@ -20,12 +20,10 @@ export async function GET(request: NextRequest) {
         email: true,
         phone: true,
         address: true,
-        city: true,
-        state: true,
-        zipCode: true,
         logo: true,
         primaryColor: true,
         active: true,
+        domain: true,
       },
     })
 
@@ -53,7 +51,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, email, phone, address, city, state, zipCode, logo, primaryColor } = body
+    const { name, email, phone, address, logo, primaryColor, domain } = body
 
     const tenant = await prisma.tenant.update({
       where: { id: session.user.tenantId },
@@ -62,11 +60,9 @@ export async function PUT(request: NextRequest) {
         ...(email !== undefined && { email }),
         ...(phone !== undefined && { phone }),
         ...(address !== undefined && { address }),
-        ...(city !== undefined && { city }),
-        ...(state !== undefined && { state }),
-        ...(zipCode !== undefined && { zipCode }),
         ...(logo !== undefined && { logo }),
         ...(primaryColor !== undefined && { primaryColor }),
+        ...(domain !== undefined && { domain }),
       },
     })
 
