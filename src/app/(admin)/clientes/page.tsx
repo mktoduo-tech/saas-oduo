@@ -64,10 +64,12 @@ export default function ClientesPage() {
       const response = await fetch(`/api/customers?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setCustomers(data)
+        // Garantir que data seja sempre um array
+        setCustomers(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Error fetching customers:", error)
+      setCustomers([])
     } finally {
       setLoading(false)
     }

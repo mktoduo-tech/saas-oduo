@@ -93,9 +93,11 @@ export default function EquipamentosPage() {
       if (!response.ok) throw new Error("Erro ao buscar equipamentos")
 
       const data = await response.json()
-      setEquipments(data)
+      // Garantir que data seja sempre um array
+      setEquipments(Array.isArray(data) ? data : [])
     } catch (error) {
       toast.error("Erro ao carregar equipamentos")
+      setEquipments([])
     } finally {
       setLoading(false)
     }
