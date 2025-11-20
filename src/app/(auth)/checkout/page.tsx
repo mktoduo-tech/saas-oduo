@@ -26,12 +26,12 @@ import {
   Lock,
   Check,
   Building,
-  User,
   Mail,
   Loader2,
+  Shield,
+  Sparkles,
 } from "lucide-react"
 
-// Plan definitions
 const plans = {
   starter: {
     name: "Starter",
@@ -62,7 +62,6 @@ const paymentSchema = z.object({
 
 type PaymentFormData = z.infer<typeof paymentSchema>
 
-// Force dynamic rendering due to useSearchParams
 export const dynamic = 'force-dynamic'
 
 function CheckoutContent() {
@@ -81,7 +80,6 @@ function CheckoutContent() {
   })
 
   useEffect(() => {
-    // Get checkout data from localStorage
     const pendingCheckout = localStorage.getItem("pendingCheckout")
     if (!pendingCheckout) {
       toast.error("Sessão expirada. Por favor, cadastre-se novamente.")
@@ -91,7 +89,6 @@ function CheckoutContent() {
 
     const data = JSON.parse(pendingCheckout)
 
-    // Check if session is older than 30 minutes
     if (Date.now() - data.timestamp > 30 * 60 * 1000) {
       localStorage.removeItem("pendingCheckout")
       toast.error("Sessão expirada. Por favor, cadastre-se novamente.")
@@ -107,13 +104,8 @@ function CheckoutContent() {
     setIsLoading(true)
 
     try {
-      // In production, this would integrate with Stripe, Mercado Pago, etc.
-      // For now, we'll simulate a payment processing
-
-      // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Process payment
       const response = await fetch("/api/payment/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,7 +126,6 @@ function CheckoutContent() {
 
       toast.success("Pagamento processado com sucesso!")
 
-      // Auto-login the user using the secure token
       if (checkoutData.autoLoginToken) {
         try {
           const loginResult = await signIn("auto-login", {
@@ -145,7 +136,6 @@ function CheckoutContent() {
           if (loginResult?.error) {
             console.error("Auto-login failed:", loginResult.error)
             toast.error("Por favor, faça login para acessar seu painel.")
-            // Clean up and redirect to login
             localStorage.removeItem("pendingCheckout")
             localStorage.removeItem("selectedPlan")
             router.push(`/login?email=${encodeURIComponent(checkoutData.email)}`)
@@ -161,11 +151,9 @@ function CheckoutContent() {
         }
       }
 
-      // Clear all temporary data
       localStorage.removeItem("pendingCheckout")
       localStorage.removeItem("selectedPlan")
 
-      // Redirect to success page
       router.push(
         `/sucesso?tenant=${checkoutData.tenantSlug}&plano=${selectedPlan}`
       )
@@ -187,47 +175,53 @@ function CheckoutContent() {
   const currentPlan = plans[selectedPlan as keyof typeof plans]
 
   return (
-    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8 xl:p-12 bg-gradient-to-b from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto">
-        {/* Back Link */}
+    <div className="w-full min-h-screen p-4 sm:p-6 lg:p-8 xl:p-12 bg-[#030712] relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/10 blur-[120px]" />
+      </div>
+
+      <div className="max-w-7xl mx-auto relative z-10">
         <Link
           href="/cadastro"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors mb-6"
+          className="inline-flex items-center text-sm text-gray-400 hover:text-white transition-colors mb-6 group"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" />
+          <ArrowLeft className="mr-2 h-4 w-4 group-hover:-translate-x-1 transition-transform" />
           Voltar
         </Link>
 
-        <div className="grid gap-6 lg:gap-10 xl:gap-12 lg:grid-cols-2">
+        <div className="grid gap-8 lg:grid-cols-2">
           {/* Order Summary */}
           <div className="space-y-6">
             <div>
-              <h1 className="font-headline tracking-wide text-2xl sm:text-3xl font-bold mb-2 text-gray-900">Finalizar Pagamento</h1>
-              <p className="text-sm sm:text-base text-gray-600">
+              <h1 className="text-3xl sm:text-4xl font-bold mb-2 text-white">Finalizar Pagamento</h1>
+              <p className="text-gray-400">
                 Revise seu pedido e complete o pagamento
               </p>
             </div>
 
             {/* Account Info */}
-            <Card className="bg-white border-gray-200">
+            <Card className="bg-white/5 border-white/10 backdrop-blur-xl">
               <CardHeader>
-                <CardTitle className="font-headline tracking-wide text-lg text-gray-900">Informações da Conta</CardTitle>
+                <CardTitle className="text-lg text-white flex items-center gap-2">
+                  <Building className="h-5 w-5 text-blue-400" />
+                  Informações da Conta
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Locadora</p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {checkoutData.tenantSlug}.seudominio.com
+                    <p className="text-sm font-medium text-gray-400">Locadora</p>
+                    <p className="text-sm text-white truncate">
+                      {checkoutData.tenantSlug}.oduo.com.br
                     </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Email</p>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="text-sm font-medium text-gray-400">Email</p>
+                    <p className="text-sm text-white truncate">
                       {checkoutData.email}
                     </p>
                   </div>
@@ -236,22 +230,24 @@ function CheckoutContent() {
             </Card>
 
             {/* Plan Details */}
-            <Card className="border-2 border-primary/20 bg-white">
+            <Card className="border-2 border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="font-headline tracking-wide text-lg">{currentPlan.name}</CardTitle>
-                  <Badge variant="secondary" className="text-base">
+                  <CardTitle className="text-xl text-white">{currentPlan.name}</CardTitle>
+                  <Badge variant="secondary" className="text-base bg-white/10 text-white border-white/20">
                     R$ {currentPlan.price}/mês
                   </Badge>
                 </div>
-                <CardDescription>{currentPlan.description}</CardDescription>
+                <CardDescription className="text-gray-300">{currentPlan.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {currentPlan.features.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                      <span className="text-sm">{feature}</span>
+                    <li key={index} className="flex items-center gap-3">
+                      <div className="h-5 w-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3 w-3 text-blue-400" />
+                      </div>
+                      <span className="text-sm text-white">{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -259,22 +255,22 @@ function CheckoutContent() {
             </Card>
 
             {/* Pricing Breakdown */}
-            <Card className="bg-white border-gray-200">
-              <CardContent className="pt-6 space-y-3">
-                <div className="flex justify-between text-sm">
+            <Card className="bg-white/5 border-white/10 backdrop-blur-xl">
+              <CardContent className="pt-6 space-y-4">
+                <div className="flex justify-between text-sm text-gray-300">
                   <span>Plano {currentPlan.name}</span>
                   <span>R$ {currentPlan.price.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-green-600">
+                <div className="flex justify-between text-sm text-emerald-400">
                   <span>14 dias grátis</span>
                   <span>- R$ {currentPlan.price.toFixed(2)}</span>
                 </div>
-                <div className="border-t border-border" />
-                <div className="flex justify-between font-bold">
+                <div className="border-t border-white/10" />
+                <div className="flex justify-between font-bold text-white">
                   <span>Total hoje</span>
-                  <span className="text-xl">R$ 0,00</span>
+                  <span className="text-2xl">R$ 0,00</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-gray-500">
                   Você será cobrado R$ {currentPlan.price.toFixed(2)} após o período de teste
                 </p>
               </CardContent>
@@ -283,27 +279,32 @@ function CheckoutContent() {
 
           {/* Payment Form */}
           <div>
-            <Card className="sticky top-6 bg-white border-gray-200">
+            <Card className="sticky top-6 bg-white/5 border-white/10 backdrop-blur-xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  <CardTitle className="font-headline tracking-wide text-lg">Informações de Pagamento</CardTitle>
+                  <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <CreditCard className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-white">Informações de Pagamento</CardTitle>
+                    <CardDescription className="text-gray-400 text-sm">
+                      Seus dados estão protegidos
+                    </CardDescription>
+                  </div>
                 </div>
-                <CardDescription>
-                  Seus dados estão protegidos e criptografados
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="cardNumber">Número do Cartão</Label>
+                    <Label htmlFor="cardNumber" className="text-gray-300">Número do Cartão</Label>
                     <Input
                       id="cardNumber"
                       placeholder="0000 0000 0000 0000"
                       maxLength={19}
                       disabled={isLoading}
+                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
                       {...register("cardNumber")}
-                      onChange={(e) => {
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         const value = e.target.value.replace(/\s/g, "")
                         const formatted = value.match(/.{1,4}/g)?.join(" ") || value
                         e.target.value = formatted
@@ -311,33 +312,35 @@ function CheckoutContent() {
                       }}
                     />
                     {errors.cardNumber && (
-                      <p className="text-sm text-red-500">{errors.cardNumber.message}</p>
+                      <p className="text-sm text-red-400">{errors.cardNumber.message}</p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="cardName">Nome no Cartão</Label>
+                    <Label htmlFor="cardName" className="text-gray-300">Nome no Cartão</Label>
                     <Input
                       id="cardName"
                       placeholder="João Silva"
                       disabled={isLoading}
+                      className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
                       {...register("cardName")}
                     />
                     {errors.cardName && (
-                      <p className="text-sm text-red-500">{errors.cardName.message}</p>
+                      <p className="text-sm text-red-400">{errors.cardName.message}</p>
                     )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="cardExpiry">Validade</Label>
+                      <Label htmlFor="cardExpiry" className="text-gray-300">Validade</Label>
                       <Input
                         id="cardExpiry"
                         placeholder="MM/AA"
                         maxLength={5}
                         disabled={isLoading}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
                         {...register("cardExpiry")}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           let value = e.target.value.replace(/\D/g, "")
                           if (value.length >= 2) {
                             value = value.slice(0, 2) + "/" + value.slice(2, 4)
@@ -347,29 +350,29 @@ function CheckoutContent() {
                         }}
                       />
                       {errors.cardExpiry && (
-                        <p className="text-sm text-red-500">{errors.cardExpiry.message}</p>
+                        <p className="text-sm text-red-400">{errors.cardExpiry.message}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="cardCvv">CVV</Label>
+                      <Label htmlFor="cardCvv" className="text-gray-300">CVV</Label>
                       <Input
                         id="cardCvv"
                         placeholder="123"
                         maxLength={4}
                         disabled={isLoading}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
                         {...register("cardCvv")}
                       />
                       {errors.cardCvv && (
-                        <p className="text-sm text-red-500">{errors.cardCvv.message}</p>
+                        <p className="text-sm text-red-400">{errors.cardCvv.message}</p>
                       )}
                     </div>
                   </div>
 
                   <Button
                     type="submit"
-                    className="w-full text-base"
-                    size="lg"
+                    className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 shadow-lg shadow-blue-500/25"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -385,8 +388,8 @@ function CheckoutContent() {
                     )}
                   </Button>
 
-                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <Lock className="h-3 w-3" />
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                    <Shield className="h-3 w-3" />
                     <span>Pagamento seguro e criptografado</span>
                   </div>
                 </form>
@@ -402,7 +405,7 @@ function CheckoutContent() {
 export default function CheckoutPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-[#030712]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     }>

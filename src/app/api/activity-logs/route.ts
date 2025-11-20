@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasPermission } from "@/lib/permissions"
+import { hasPermission, type Role } from "@/lib/permissions"
 
 // GET /api/activity-logs - Listar logs de atividade
 export async function GET(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Apenas ADMIN e SUPER_ADMIN podem ver logs
-    if (!hasPermission(session.user.role, 'reports.view')) {
+    if (!hasPermission(session.user.role as Role, 'VIEW_REPORTS')) {
       return NextResponse.json({ error: "Sem permissão para visualizar logs" }, { status: 403 })
     }
 

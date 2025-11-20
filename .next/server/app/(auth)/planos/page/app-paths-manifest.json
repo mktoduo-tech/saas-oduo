@@ -1,0 +1,3 @@
+{
+  "/(auth)/planos/page": "app/(auth)/planos/page.js"
+}

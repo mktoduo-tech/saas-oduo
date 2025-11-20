@@ -1,3 +1,4 @@
+import "@/app/globals.css"
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Providers } from "./providers"

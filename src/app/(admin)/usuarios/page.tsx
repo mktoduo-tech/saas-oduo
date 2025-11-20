@@ -66,9 +66,9 @@ export default function UsuariosPage() {
   const [search, setSearch] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  const canEdit = session?.user?.role && hasPermission(session.user.role, 'user.edit')
-  const canDelete = session?.user?.role && hasPermission(session.user.role, 'user.delete')
-  const canCreate = session?.user?.role && hasPermission(session.user.role, 'user.create')
+  const canEdit = session?.user?.role && hasPermission(session.user.role as Role, 'EDIT_USER')
+  const canDelete = session?.user?.role && hasPermission(session.user.role as Role, 'DELETE_USER')
+  const canCreate = session?.user?.role && hasPermission(session.user.role as Role, 'CREATE_USER')
 
   const fetchUsers = async () => {
     try {

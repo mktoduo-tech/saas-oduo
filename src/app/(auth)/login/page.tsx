@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import Link from "next/link"
+import { Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -46,15 +47,20 @@ function LoginForm() {
     setIsLoading(true)
 
     try {
-      // signIn with callbackUrl will redirect automatically on success
-      await signIn("credentials", {
+      const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
+        redirect: false,
         callbackUrl: callbackUrl,
       })
-      // If we reach here without redirect, login failed
-      toast.error("Email ou senha incorretos")
-      setIsLoading(false)
+
+      if (result?.error) {
+        toast.error("Email ou senha incorretos")
+        setIsLoading(false)
+      } else {
+        router.push(callbackUrl)
+        router.refresh()
+      }
     } catch (error) {
       toast.error("Erro ao fazer login. Tente novamente.")
       setIsLoading(false)
@@ -62,51 +68,70 @@ function LoginForm() {
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="space-y-1 sm:space-y-2 px-4 sm:px-6 pt-6 sm:pt-8">
-        <CardTitle className="text-xl sm:text-2xl text-center font-headline tracking-wide">Login</CardTitle>
-        <CardDescription className="text-center text-sm sm:text-base">
+    <Card className="w-full border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
+      <CardHeader className="space-y-2 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
+          <Sparkles className="h-6 w-6 text-primary" />
+        </div>
+        <CardTitle className="text-2xl font-bold tracking-tight text-white">
+          Bem-vindo de volta
+        </CardTitle>
+        <CardDescription className="text-gray-400">
           Entre com suas credenciais para acessar o painel
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-4 sm:px-6 pb-6 sm:pb-8">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-gray-300">Email</Label>
             <Input
               id="email"
               type="email"
               placeholder="seu@email.com"
               disabled={isLoading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-primary/50 focus:ring-primary/20"
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
+              <p className="text-sm text-red-400">{errors.email.message}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-gray-300">Senha</Label>
+              <Link
+                href="/recuperar-senha"
+                className="text-xs text-primary hover:text-primary/80 hover:underline"
+              >
+                Esqueceu a senha?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"
               placeholder="••••••••"
               disabled={isLoading}
+              className="bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-primary/50 focus:ring-primary/20"
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-sm text-red-500">{errors.password.message}</p>
+              <p className="text-sm text-red-400">{errors.password.message}</p>
             )}
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Entrando..." : "Entrar"}
+          <Button
+            type="submit"
+            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border-0 shadow-lg shadow-primary/20 transition-all duration-300 hover:scale-[1.02]"
+            disabled={isLoading}
+          >
+            {isLoading ? "Entrando..." : "Entrar na Plataforma"}
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col space-y-2 px-4 sm:px-6 pb-6 sm:pb-8">
-        <div className="text-xs sm:text-sm text-muted-foreground text-center">
+      <CardFooter className="flex flex-col space-y-4 border-t border-white/5 pt-6">
+        <div className="text-sm text-gray-400 text-center">
           Não tem uma conta?{" "}
-          <Link href="/cadastro" className="text-primary hover:underline">
-            Cadastre-se
+          <Link href="/cadastro" className="font-medium text-primary hover:text-primary/80 hover:underline transition-colors">
+            Criar conta gratuitamente
           </Link>
         </div>
       </CardFooter>
@@ -116,11 +141,30 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="w-full min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8 xl:p-12">
-      <div className="w-full max-w-md">
-        <Suspense fallback={<div>Carregando...</div>}>
+    <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-[#030712]">
+      {/* Background Effects */}
+      <div className="absolute inset-0 w-full h-full">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 blur-[120px]" />
+      </div>
+
+      <div className="relative w-full max-w-md p-4 z-10">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+            ODuo Locação
+          </h1>
+          <p className="text-gray-500 mt-2 text-sm">Sistema de Gestão para Locadoras</p>
+        </div>
+
+        <Suspense fallback={
+          <div className="w-full h-[400px] rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+        }>
           <LoginForm />
         </Suspense>
+
+        <div className="mt-8 text-center text-xs text-gray-600">
+          &copy; 2025 ODuo Assessoria. Todos os direitos reservados.
+        </div>
       </div>
     </div>
   )

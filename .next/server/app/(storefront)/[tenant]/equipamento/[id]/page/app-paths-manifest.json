@@ -1,0 +1,3 @@
+{
+  "/(storefront)/[tenant]/equipamento/[id]/page": "app/(storefront)/[tenant]/equipamento/[id]/page.js"
+}
