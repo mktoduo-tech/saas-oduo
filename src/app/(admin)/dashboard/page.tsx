@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Package, Users, Calendar, TrendingUp, Loader2, Plus } from "lucide-react"
+import { Package, Users, Calendar, TrendingUp, Loader2, Plus, ArrowRight } from "lucide-react"
 
 interface DashboardStats {
   customers: {
@@ -58,7 +58,11 @@ export default function DashboardPage() {
         const response = await fetch("/api/dashboard/stats")
         if (response.ok) {
           const data = await response.json()
-          setStats(data)
+          // Garantir que recentBookings seja sempre um array
+          setStats({
+            ...data,
+            recentBookings: data.recentBookings || []
+          })
         }
       } catch (error) {
         console.error("Error fetching stats:", error)
@@ -89,10 +93,10 @@ export default function DashboardPage() {
   }
 
   const statusColors = {
-    PENDING: "bg-accent",
-    CONFIRMED: "bg-primary",
-    CANCELLED: "bg-red-500",
-    COMPLETED: "bg-green-500",
+    PENDING: "bg-yellow-500/20 text-yellow-500 border-yellow-500/20",
+    CONFIRMED: "bg-blue-500/20 text-blue-500 border-blue-500/20",
+    CANCELLED: "bg-red-500/20 text-red-500 border-red-500/20",
+    COMPLETED: "bg-emerald-500/20 text-emerald-500 border-emerald-500/20",
   }
 
   if (loading) {
@@ -104,76 +108,93 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
+    <div className="p-4 sm:p-8 space-y-8 max-w-7xl mx-auto">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground font-headline tracking-wide">
-          Olá, {session?.user?.name?.split(" ")[0]}!
-        </h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
-          Bem-vindo ao painel da {session?.user?.tenantName}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 tracking-tight">
+            Olá, {session?.user?.name?.split(" ")[0]}
+          </h1>
+          <p className="text-muted-foreground mt-1 text-lg">
+            Visão geral da {session?.user?.tenantName}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Link href="/reservas/novo">
+            <Button className="shadow-lg shadow-primary/20">
+              <Plus className="mr-2 h-4 w-4" /> Nova Reserva
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="relative overflow-hidden border-l-4 border-l-blue-500">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Package className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Equipamentos
             </CardTitle>
-            <Package className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.equipment.total || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.equipment.available || 0} disponíveis
+            <div className="text-3xl font-bold text-white">{stats?.equipment.total || 0}</div>
+            <p className="text-sm text-blue-400 mt-1 font-medium">
+              {stats?.equipment.available || 0} disponíveis agora
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-secondary">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+        <Card className="relative overflow-hidden border-l-4 border-l-cyan-500">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Users className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Clientes
             </CardTitle>
-            <Users className="h-4 w-4 text-secondary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.customers.total || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Clientes cadastrados
+            <div className="text-3xl font-bold text-white">{stats?.customers.total || 0}</div>
+            <p className="text-sm text-cyan-400 mt-1 font-medium">
+              Base ativa
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-accent">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
+        <Card className="relative overflow-hidden border-l-4 border-l-amber-500">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Calendar className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Reservas Ativas
             </CardTitle>
-            <Calendar className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.bookings.active || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.bookings.pending || 0} pendentes
+            <div className="text-3xl font-bold text-white">{stats?.bookings.active || 0}</div>
+            <p className="text-sm text-amber-400 mt-1 font-medium">
+              {stats?.bookings.pending || 0} pendentes de aprovação
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Receita do Mês
+        <Card className="relative overflow-hidden border-l-4 border-l-emerald-500">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <TrendingUp className="h-24 w-24" />
+          </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              Receita Mensal
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold text-white">
               {formatCurrency(stats?.revenue.thisMonth || 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-emerald-400 mt-1 font-medium">
               Total: {formatCurrency(stats?.revenue.total || 0)}
             </p>
           </CardContent>
@@ -181,50 +202,62 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Bookings and Quick Actions */}
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Recent Bookings */}
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
-              <div>
-                <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Reservas Recentes</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">
-                  Últimas 5 reservas criadas
-                </CardDescription>
-              </div>
-              <Link href="/reservas">
-                <Button variant="outline" size="sm" className="w-full sm:w-auto">
-                  Ver todas
-                </Button>
-              </Link>
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Reservas Recentes</CardTitle>
+              <CardDescription>
+                Acompanhe as últimas movimentações
+              </CardDescription>
             </div>
+            <Link href="/reservas">
+              <Button variant="ghost" size="sm" className="gap-2">
+                Ver todas <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </CardHeader>
           <CardContent>
             {stats?.recentBookings && stats.recentBookings.length > 0 ? (
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-4">
                 {stats.recentBookings.map((booking) => (
                   <div
                     key={booking.id}
-                    className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{booking.customer.name}</p>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {booking.equipment.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDate(booking.startDate)} → {formatDate(booking.endDate)}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
+                        <Calendar className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-white">{booking.customer.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {booking.equipment.name}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start sm:text-right gap-2 sm:gap-0">
-                      <p className="font-semibold text-sm">
-                        {formatCurrency(booking.totalPrice)}
-                      </p>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-6 flex-1">
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-white">
+                          {formatDate(booking.startDate)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          até {formatDate(booking.endDate)}
+                        </p>
+                      </div>
+
+                      <div className="text-right min-w-[80px]">
+                        <p className="font-bold text-white">
+                          {formatCurrency(booking.totalPrice)}
+                        </p>
+                      </div>
+
                       <Badge
-                        className={`${
-                          statusColors[booking.status as keyof typeof statusColors]
-                        } text-white text-xs`}
-                        variant="secondary"
+                        className={`${statusColors[booking.status as keyof typeof statusColors]
+                          } border`}
+                        variant="outline"
                       >
                         {statusLabels[booking.status as keyof typeof statusLabels]}
                       </Badge>
@@ -233,11 +266,11 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm sm:text-base">Nenhuma reserva ainda</p>
+              <div className="text-center py-12 text-muted-foreground bg-white/5 rounded-xl border border-dashed border-white/10">
+                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p className="text-lg font-medium text-white/50">Nenhuma reserva encontrada</p>
                 <Link href="/reservas/novo">
-                  <Button variant="link" className="mt-2 text-sm">
+                  <Button variant="link" className="mt-2">
                     Criar primeira reserva
                   </Button>
                 </Link>
@@ -249,122 +282,56 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline tracking-wide">Ações Rápidas</CardTitle>
+            <CardTitle>Acesso Rápido</CardTitle>
             <CardDescription>
-              Acesse rapidamente as principais funcionalidades
+              Funcionalidades mais usadas
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Link href="/reservas/novo">
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary hover:bg-primary/5 transition-all cursor-pointer">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Plus className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Nova Reserva</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Criar reserva de equipamento
-                    </p>
-                  </div>
+          <CardContent className="grid gap-4">
+            <Link href="/reservas/novo" className="group">
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-blue-500/10 hover:border-blue-500/20 transition-all duration-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 group-hover:scale-110 transition-transform">
+                  <Plus className="h-6 w-6" />
                 </div>
-              </Link>
-
-              <Link href="/clientes/novo">
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-secondary hover:bg-secondary/5 transition-all cursor-pointer">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10">
-                    <Users className="h-5 w-5 text-secondary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Novo Cliente</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Cadastrar novo cliente
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors">Nova Reserva</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Agendar locação
+                  </p>
                 </div>
-              </Link>
+                <ArrowRight className="ml-auto h-5 w-5 text-muted-foreground group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+              </div>
+            </Link>
 
-              <Link href="/equipamentos/novo">
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-accent hover:bg-accent/5 transition-all cursor-pointer">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
-                    <Package className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Novo Equipamento</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Adicionar equipamento ao catálogo
-                    </p>
-                  </div>
+            <Link href="/clientes/novo" className="group">
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-cyan-500/10 hover:border-cyan-500/20 transition-all duration-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 group-hover:scale-110 transition-transform">
+                  <Users className="h-6 w-6" />
                 </div>
-              </Link>
-
-              <Link href="/equipamentos">
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:border-primary hover:bg-primary/5 transition-all cursor-pointer">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Package className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Ver Equipamentos</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Gerenciar catálogo
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors">Novo Cliente</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Cadastrar cliente
+                  </p>
                 </div>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                <ArrowRight className="ml-auto h-5 w-5 text-muted-foreground group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+              </div>
+            </Link>
 
-      {/* Account and Company Info */}
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Informações da Conta</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Seus dados de acesso</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Nome</p>
-              <p className="text-base sm:text-lg font-semibold truncate">{session?.user?.name}</p>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Email</p>
-              <p className="text-base sm:text-lg truncate">{session?.user?.email}</p>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Função</p>
-              <Badge variant="secondary" className="mt-1 text-xs">
-                {session?.user?.role}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Sua Locadora</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Informações da empresa</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Nome</p>
-              <p className="text-base sm:text-lg font-semibold truncate">{session?.user?.tenantName}</p>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Slug</p>
-              <p className="font-mono text-xs sm:text-sm bg-muted p-2 rounded break-all">
-                {session?.user?.tenantSlug}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">
-                Subdomínio
-              </p>
-              <p className="font-mono text-xs sm:text-sm bg-muted p-2 rounded break-all">
-                {session?.user?.tenantSlug}.localhost:3000
-              </p>
-            </div>
+            <Link href="/equipamentos/novo" className="group">
+              <div className="flex items-center gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-emerald-500/10 hover:border-emerald-500/20 transition-all duration-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                  <Package className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors">Novo Equipamento</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Adicionar item
+                  </p>
+                </div>
+                <ArrowRight className="ml-auto h-5 w-5 text-muted-foreground group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
+              </div>
+            </Link>
           </CardContent>
         </Card>
       </div>
