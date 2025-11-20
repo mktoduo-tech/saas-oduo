@@ -71,9 +71,14 @@ export default function RelatoriosPage() {
       ])
 
       if (bookingsRes.ok && equipmentsRes.ok && customersRes.ok) {
-        const bookings = await bookingsRes.json()
-        const equipments = await equipmentsRes.json()
-        const customers = await customersRes.json()
+        const bookingsData = await bookingsRes.json()
+        const equipmentsData = await equipmentsRes.json()
+        const customersData = await customersRes.json()
+
+        // Garantir que todos sejam arrays
+        const bookings = Array.isArray(bookingsData) ? bookingsData : []
+        const equipments = Array.isArray(equipmentsData) ? equipmentsData : []
+        const customers = Array.isArray(customersData) ? customersData : []
 
         // Calcular métricas
         const totalRevenue = bookings.reduce((sum: number, booking: any) => {

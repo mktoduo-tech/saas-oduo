@@ -93,10 +93,12 @@ export default function CalendarioPage() {
       const response = await fetch(`/api/bookings?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setBookings(data)
+        // Garantir que data seja sempre um array
+        setBookings(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Error fetching bookings:", error)
+      setBookings([])
     } finally {
       setLoading(false)
     }
