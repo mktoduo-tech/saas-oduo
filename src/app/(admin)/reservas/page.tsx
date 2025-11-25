@@ -26,7 +26,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, Calendar, User, Package } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, Edit, Trash2, Calendar, User, Package, MoreHorizontal, Mail, FileText, Receipt, Send } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 interface Booking {
   id: string
@@ -133,6 +142,54 @@ export default function ReservasPage() {
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString("pt-BR")
+  }
+
+  const handleSendEmail = async (bookingId: string, type: string) => {
+    try {
+      const response = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, type }),
+      })
+
+      if (response.ok) {
+        toast.success("Email enviado com sucesso!")
+      } else {
+        const data = await response.json()
+        toast.error(data.error || "Erro ao enviar email")
+      }
+    } catch (error) {
+      console.error("Error sending email:", error)
+      toast.error("Erro ao enviar email")
+    }
+  }
+
+  const handleGenerateDocument = async (bookingId: string, type: string) => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Open HTML in new tab for printing/saving
+        const printWindow = window.open("", "_blank")
+        if (printWindow) {
+          printWindow.document.write(data.html)
+          printWindow.document.close()
+          printWindow.focus()
+        }
+        toast.success("Documento gerado com sucesso!")
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || "Erro ao gerar documento")
+      }
+    } catch (error) {
+      console.error("Error generating document:", error)
+      toast.error("Erro ao gerar documento")
+    }
   }
 
   return (
@@ -272,19 +329,58 @@ export default function ReservasPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
                           <Link href={`/reservas/${booking.id}`}>
                             <Button variant="ghost" size="icon">
                               <Edit className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteId(booking.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleSendEmail(booking.id, "confirmation")}
+                                disabled={!booking.customer.email}
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                Enviar Confirmação
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSendEmail(booking.id, "reminder")}
+                                disabled={!booking.customer.email}
+                              >
+                                <Mail className="h-4 w-4 mr-2" />
+                                Enviar Lembrete
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleGenerateDocument(booking.id, "CONTRACT")}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                Gerar Contrato
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleGenerateDocument(booking.id, "RECEIPT")}
+                              >
+                                <Receipt className="h-4 w-4 mr-2" />
+                                Gerar Recibo
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleteId(booking.id)}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

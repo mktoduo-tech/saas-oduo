@@ -32,7 +32,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ equipment }, { status: 200 })
+    return NextResponse.json(equipment, { status: 200 })
   } catch (error) {
     console.error("Erro ao buscar equipamento:", error)
     return NextResponse.json(

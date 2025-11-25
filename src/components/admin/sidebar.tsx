@@ -12,7 +12,8 @@ import {
     HelpCircle,
     LogOut,
     CreditCard,
-    BarChart3
+    BarChart3,
+    FileCode
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -71,6 +72,12 @@ export function Sidebar({ className }: SidebarProps) {
             icon: HelpCircle,
             href: "/ajuda",
             color: "text-orange-400",
+        },
+        {
+            label: "API Docs",
+            icon: FileCode,
+            href: "/api-docs",
+            color: "text-violet-400",
         },
     ]
 
