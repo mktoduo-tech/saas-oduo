@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import {
     LayoutDashboard,
     Calendar,
+    CalendarDays,
     Users,
     Package,
     Settings,
@@ -36,6 +37,12 @@ export function Sidebar({ className }: SidebarProps) {
             icon: Calendar,
             href: "/reservas",
             color: "text-purple-400",
+        },
+        {
+            label: "Calendário",
+            icon: CalendarDays,
+            href: "/calendario",
+            color: "text-indigo-400",
         },
         {
             label: "Clientes",

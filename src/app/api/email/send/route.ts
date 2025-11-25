@@ -12,6 +12,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
+    // Verificar se RESEND_API_KEY está configurada
+    if (!process.env.RESEND_API_KEY) {
+      console.error("RESEND_API_KEY não configurada")
+      return NextResponse.json(
+        { error: "Serviço de email não configurado. Configure RESEND_API_KEY nas variáveis de ambiente." },
+        { status: 503 }
+      )
+    }
+
     const tenantId = session.user.tenantId
     const body = await request.json()
     const { type, bookingId, customEmail } = body
@@ -32,7 +41,8 @@ export async function POST(request: NextRequest) {
         to: customEmail.to,
         subject: customEmail.subject,
         html: customEmail.html,
-        from: tenant.email ? `${tenant.name} <${tenant.email}>` : undefined,
+        from: `${tenant.name} <noreply@resend.dev>`,
+        replyTo: tenant.email || undefined,
       })
 
       return NextResponse.json({ success: true, message: "Email enviado com sucesso" })
@@ -132,12 +142,26 @@ export async function POST(request: NextRequest) {
       to: booking.customer.email,
       subject: emailData.subject,
       html: emailData.html,
-      from: tenant.email ? `${tenant.name} <${tenant.email}>` : undefined,
+      from: `${tenant.name} <noreply@resend.dev>`,
+      replyTo: tenant.email || undefined,
     })
 
     return NextResponse.json({ success: true, message: "Email enviado com sucesso" })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao enviar email:", error)
-    return NextResponse.json({ error: "Erro ao enviar email" }, { status: 500 })
+
+    // Mensagem de erro mais específica
+    let errorMessage = "Erro ao enviar email"
+    if (error?.message) {
+      if (error.message.includes("domain")) {
+        errorMessage = "Domínio de email não verificado no Resend. Use noreply@resend.dev ou verifique seu domínio."
+      } else if (error.message.includes("API key")) {
+        errorMessage = "Chave de API do Resend inválida"
+      } else {
+        errorMessage = error.message
+      }
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     })
 
-    return NextResponse.json({ bookings }, { status: 200 })
+    return NextResponse.json(bookings, { status: 200 })
   } catch (error) {
     console.error("Erro ao buscar reservas:", error)
     return NextResponse.json(

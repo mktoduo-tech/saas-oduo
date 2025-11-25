@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Plus, DollarSign, TrendingUp, TrendingDown, Calendar, CreditCard, AlertCircle, CheckCircle, Clock, FileText, Download } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Plus, DollarSign, TrendingUp, TrendingDown, Calendar, CreditCard, AlertCircle, CheckCircle, FileText, Download, Loader2 } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -44,144 +43,54 @@ interface Transaction {
   paymentMethod?: string
 }
 
-const mockTransactions: Transaction[] = [
-  {
-    id: "1",
-    type: "income",
-    category: "Locação",
-    description: "Aluguel Betoneira - Cliente João Silva",
-    amount: 1200,
-    date: "2024-01-15",
-    status: "paid",
-    paymentMethod: "PIX",
-  },
-  {
-    id: "2",
-    type: "expense",
-    category: "Fornecedor",
-    description: "Compra Peças de Reposição",
-    amount: 3500,
-    date: "2024-01-10",
-    status: "paid",
-    paymentMethod: "Boleto",
-  },
-  {
-    id: "3",
-    type: "income",
-    category: "Locação",
-    description: "Aluguel Escavadeira - Cliente Maria Santos",
-    amount: 8500,
-    date: "2024-01-20",
-    status: "pending",
-    dueDate: "2024-02-05",
-  },
-  {
-    id: "4",
-    type: "expense",
-    category: "Manutenção",
-    description: "Manutenção Preventiva Equipamentos",
-    amount: 2200,
-    date: "2024-01-05",
-    status: "paid",
-    paymentMethod: "Cartão Crédito",
-  },
-  {
-    id: "5",
-    type: "income",
-    category: "Locação",
-    description: "Aluguel Guindaste - Cliente Carlos Oliveira",
-    amount: 15000,
-    date: "2024-01-25",
-    status: "pending",
-    dueDate: "2024-02-10",
-  },
-  {
-    id: "6",
-    type: "expense",
-    category: "Operacional",
-    description: "Combustível e Lubrificantes",
-    amount: 1800,
-    date: "2024-01-12",
-    status: "overdue",
-    dueDate: "2024-01-20",
-  },
-  {
-    id: "7",
-    type: "expense",
-    category: "Salário",
-    description: "Folha de Pagamento Janeiro",
-    amount: 12000,
-    date: "2024-01-30",
-    status: "pending",
-    dueDate: "2024-02-05",
-  },
-  {
-    id: "8",
-    type: "income",
-    category: "Locação",
-    description: "Aluguel Equipamentos Diversos - Cliente Ana Costa",
-    amount: 4200,
-    date: "2024-01-18",
-    status: "paid",
-    paymentMethod: "PIX",
-  },
-]
-
 interface DREData {
   receitas: { label: string; value: number }[]
   despesas: { label: string; value: number }[]
 }
 
-const mockDRE: DREData = {
-  receitas: [
-    { label: "Receita de Locações", value: 45000 },
-    { label: "Receita de Serviços", value: 8500 },
-    { label: "Outras Receitas", value: 2300 },
-  ],
-  despesas: [
-    { label: "Custos Operacionais", value: 12000 },
-    { label: "Salários e Encargos", value: 18000 },
-    { label: "Manutenção", value: 5500 },
-    { label: "Marketing", value: 3200 },
-    { label: "Despesas Administrativas", value: 4800 },
-    { label: "Impostos", value: 6200 },
-  ],
+interface FinancialStats {
+  transactions: Transaction[]
+  dre: DREData
+  summary: {
+    totalIncome: number
+    totalExpense: number
+    balance: number
+    pendingIncome: number
+    pendingExpense: number
+    overdueCount: number
+    totalReceitas: number
+    totalDespesas: number
+    lucroLiquido: number
+    margemLucro: string
+  }
 }
 
 export default function FinanceiroPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions)
+  const [stats, setStats] = useState<FinancialStats | null>(null)
+  const [loading, setLoading] = useState(true)
   const [createDialog, setCreateDialog] = useState(false)
   const [transactionType, setTransactionType] = useState("")
 
-  // Calcular métricas
-  const totalIncome = transactions
-    .filter(t => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0)
+  useEffect(() => {
+    fetchFinancialData()
+  }, [])
 
-  const totalExpense = transactions
-    .filter(t => t.type === "expense")
-    .reduce((sum, t) => sum + t.amount, 0)
-
-  const balance = totalIncome - totalExpense
-
-  const pendingIncome = transactions
-    .filter(t => t.type === "income" && t.status === "pending")
-    .reduce((sum, t) => sum + t.amount, 0)
-
-  const pendingExpense = transactions
-    .filter(t => t.type === "expense" && (t.status === "pending" || t.status === "overdue"))
-    .reduce((sum, t) => sum + t.amount, 0)
-
-  const overdueCount = transactions.filter(t => t.status === "overdue").length
-
-  // DRE Calculations
-  const totalReceitas = mockDRE.receitas.reduce((sum, r) => sum + r.value, 0)
-  const totalDespesas = mockDRE.despesas.reduce((sum, d) => sum + d.value, 0)
-  const lucroLiquido = totalReceitas - totalDespesas
-  const margemLucro = totalReceitas > 0 ? ((lucroLiquido / totalReceitas) * 100).toFixed(1) : "0"
+  const fetchFinancialData = async () => {
+    try {
+      const response = await fetch("/api/financial/stats")
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data)
+      }
+    } catch (error) {
+      console.error("Erro ao buscar dados financeiros:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleCreateTransaction = () => {
-    toast.success("Transação criada com sucesso! (exemplo)")
+    toast.success("Funcionalidade em desenvolvimento")
     setCreateDialog(false)
   }
 
@@ -198,6 +107,29 @@ export default function FinanceiroPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    )
+  }
+
+  const transactions = stats?.transactions || []
+  const dre = stats?.dre || { receitas: [], despesas: [] }
+  const summary = stats?.summary || {
+    totalIncome: 0,
+    totalExpense: 0,
+    balance: 0,
+    pendingIncome: 0,
+    pendingExpense: 0,
+    overdueCount: 0,
+    totalReceitas: 0,
+    totalDespesas: 0,
+    lucroLiquido: 0,
+    margemLucro: "0",
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
@@ -205,7 +137,7 @@ export default function FinanceiroPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 font-headline tracking-wide">ODuo Finance</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            BPO + SaaS - Gestão Financeira Completa
+            Gestão Financeira Completa
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -305,11 +237,11 @@ export default function FinanceiroPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-              R$ {balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            <div className={`text-2xl font-bold ${summary.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+              R$ {summary.balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {balance >= 0 ? "Positivo" : "Negativo"}
+              {summary.balance >= 0 ? "Positivo" : "Negativo"}
             </p>
           </CardContent>
         </Card>
@@ -321,10 +253,10 @@ export default function FinanceiroPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              R$ {totalIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              R$ {summary.totalIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </div>
             <p className="text-xs text-muted-foreground">
-              A receber: R$ {pendingIncome.toLocaleString("pt-BR")}
+              A receber: R$ {summary.pendingIncome.toLocaleString("pt-BR")}
             </p>
           </CardContent>
         </Card>
@@ -336,10 +268,10 @@ export default function FinanceiroPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              R$ {totalExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              R$ {summary.totalExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </div>
             <p className="text-xs text-muted-foreground">
-              A pagar: R$ {pendingExpense.toLocaleString("pt-BR")}
+              A pagar: R$ {summary.pendingExpense.toLocaleString("pt-BR")}
             </p>
           </CardContent>
         </Card>
@@ -350,9 +282,9 @@ export default function FinanceiroPage() {
             <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{overdueCount}</div>
+            <div className="text-2xl font-bold text-orange-600">{summary.overdueCount}</div>
             <p className="text-xs text-muted-foreground">
-              {overdueCount === 1 ? "Conta vencida" : "Contas vencidas"}
+              {summary.overdueCount === 1 ? "Conta vencida" : "Contas vencidas"}
             </p>
           </CardContent>
         </Card>
@@ -390,64 +322,72 @@ export default function FinanceiroPage() {
               <CardDescription className="text-xs sm:text-sm">Todas as movimentações financeiras</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {transactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div
-                        className={`p-2 rounded-full flex-shrink-0 ${
-                          transaction.type === "income"
-                            ? "bg-green-100 dark:bg-green-900"
-                            : "bg-red-100 dark:bg-red-900"
-                        }`}
-                      >
-                        {transaction.type === "income" ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
-                          <h3 className="font-medium text-sm sm:text-base truncate">{transaction.description}</h3>
-                          {getStatusBadge(transaction.status)}
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-muted-foreground">
-                          <span>{transaction.category}</span>
-                          <span className="hidden sm:inline">•</span>
-                          <span>
-                            {new Date(transaction.date).toLocaleDateString("pt-BR")}
-                          </span>
-                          {transaction.dueDate && transaction.status !== "paid" && (
-                            <>
-                              <span className="hidden sm:inline">•</span>
-                              <span className="text-[10px] sm:text-xs">
-                                Vence:{" "}
-                                {new Date(transaction.dueDate).toLocaleDateString("pt-BR")}
-                              </span>
-                            </>
+              {transactions.length > 0 ? (
+                <div className="space-y-3">
+                  {transactions.map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                        <div
+                          className={`p-2 rounded-full flex-shrink-0 ${
+                            transaction.type === "income"
+                              ? "bg-green-100 dark:bg-green-900"
+                              : "bg-red-100 dark:bg-red-900"
+                          }`}
+                        >
+                          {transaction.type === "income" ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
                           )}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                            <h3 className="font-medium text-sm sm:text-base truncate">{transaction.description}</h3>
+                            {getStatusBadge(transaction.status)}
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-muted-foreground">
+                            <span>{transaction.category}</span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>
+                              {new Date(transaction.date).toLocaleDateString("pt-BR")}
+                            </span>
+                            {transaction.dueDate && transaction.status !== "paid" && (
+                              <>
+                                <span className="hidden sm:inline">•</span>
+                                <span className="text-[10px] sm:text-xs">
+                                  Vence:{" "}
+                                  {new Date(transaction.dueDate).toLocaleDateString("pt-BR")}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        className={`text-base sm:text-lg font-bold text-right sm:text-left ${
+                          transaction.type === "income"
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {transaction.type === "income" ? "+" : "-"}R${" "}
+                        {transaction.amount.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                        })}
                       </div>
                     </div>
-                    <div
-                      className={`text-base sm:text-lg font-bold text-right sm:text-left ${
-                        transaction.type === "income"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
-                    >
-                      {transaction.type === "income" ? "+" : "-"}R${" "}
-                      {transaction.amount.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma transação encontrada</p>
+                  <p className="text-sm mt-2">As transações aparecerão aqui quando houver reservas</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -458,7 +398,7 @@ export default function FinanceiroPage() {
             <CardHeader>
               <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Contas a Receber</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Total: R$ {pendingIncome.toLocaleString("pt-BR")}
+                Total: R$ {summary.pendingIncome.toLocaleString("pt-BR")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -488,7 +428,7 @@ export default function FinanceiroPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => toast.success("Marcar como pago (exemplo)")}
+                          onClick={() => toast.success("Funcionalidade em desenvolvimento")}
                           className="text-xs sm:text-sm"
                         >
                           <CheckCircle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -515,7 +455,7 @@ export default function FinanceiroPage() {
             <CardHeader>
               <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Contas a Pagar</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Total: R$ {pendingExpense.toLocaleString("pt-BR")}
+                Total: R$ {summary.pendingExpense.toLocaleString("pt-BR")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -557,7 +497,7 @@ export default function FinanceiroPage() {
                         <Button
                           size="sm"
                           variant={transaction.status === "overdue" ? "destructive" : "default"}
-                          onClick={() => toast.success("Marcar como pago (exemplo)")}
+                          onClick={() => toast.success("Funcionalidade em desenvolvimento")}
                           className="text-xs sm:text-sm"
                         >
                           <CreditCard className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -567,6 +507,15 @@ export default function FinanceiroPage() {
                       </div>
                     </div>
                   ))}
+                {transactions.filter(
+                  t =>
+                    t.type === "expense" &&
+                    (t.status === "pending" || t.status === "overdue")
+                ).length === 0 && (
+                  <p className="text-center py-8 text-muted-foreground">
+                    Nenhuma conta a pagar
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -581,7 +530,7 @@ export default function FinanceiroPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-2xl font-bold text-green-600">
-                  R$ {totalReceitas.toLocaleString("pt-BR")}
+                  R$ {summary.totalReceitas.toLocaleString("pt-BR")}
                 </div>
               </CardContent>
             </Card>
@@ -592,7 +541,7 @@ export default function FinanceiroPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-xl sm:text-2xl font-bold text-red-600">
-                  R$ {totalDespesas.toLocaleString("pt-BR")}
+                  R$ {summary.totalDespesas.toLocaleString("pt-BR")}
                 </div>
               </CardContent>
             </Card>
@@ -604,13 +553,13 @@ export default function FinanceiroPage() {
               <CardContent>
                 <div
                   className={`text-xl sm:text-2xl font-bold ${
-                    lucroLiquido >= 0 ? "text-green-600" : "text-red-600"
+                    summary.lucroLiquido >= 0 ? "text-green-600" : "text-red-600"
                   }`}
                 >
-                  R$ {lucroLiquido.toLocaleString("pt-BR")}
+                  R$ {summary.lucroLiquido.toLocaleString("pt-BR")}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Margem: {margemLucro}%
+                  Margem: {summary.margemLucro}%
                 </p>
               </CardContent>
             </Card>
@@ -623,26 +572,30 @@ export default function FinanceiroPage() {
                 <CardDescription className="text-xs sm:text-sm">Detalhamento das receitas</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {mockDRE.receitas.map((item, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs sm:text-sm">
-                        <span className="font-medium sm:font-normal">{item.label}</span>
-                        <span className="font-medium text-green-600">
-                          R$ {item.value.toLocaleString("pt-BR")}
-                        </span>
+                {dre.receitas.length > 0 ? (
+                  <div className="space-y-4">
+                    {dre.receitas.map((item, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs sm:text-sm">
+                          <span className="font-medium sm:font-normal">{item.label}</span>
+                          <span className="font-medium text-green-600">
+                            R$ {item.value.toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-600"
+                            style={{
+                              width: `${summary.totalReceitas > 0 ? (item.value / summary.totalReceitas) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-600"
-                          style={{
-                            width: `${(item.value / totalReceitas) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-4 text-muted-foreground">Nenhuma receita registrada</p>
+                )}
               </CardContent>
             </Card>
 
@@ -652,26 +605,30 @@ export default function FinanceiroPage() {
                 <CardDescription className="text-xs sm:text-sm">Detalhamento das despesas</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {mockDRE.despesas.map((item, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs sm:text-sm">
-                        <span className="font-medium sm:font-normal">{item.label}</span>
-                        <span className="font-medium text-red-600">
-                          R$ {item.value.toLocaleString("pt-BR")}
-                        </span>
+                {dre.despesas.length > 0 ? (
+                  <div className="space-y-4">
+                    {dre.despesas.map((item, index) => (
+                      <div key={index} className="space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-1 text-xs sm:text-sm">
+                          <span className="font-medium sm:font-normal">{item.label}</span>
+                          <span className="font-medium text-red-600">
+                            R$ {item.value.toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-red-600"
+                            style={{
+                              width: `${summary.totalDespesas > 0 ? (item.value / summary.totalDespesas) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-red-600"
-                          style={{
-                            width: `${(item.value / totalDespesas) * 100}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-4 text-muted-foreground">Nenhuma despesa registrada</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -685,20 +642,20 @@ export default function FinanceiroPage() {
             </CardHeader>
             <CardContent className="text-xs sm:text-sm space-y-2 text-foreground">
               <p>
-                ✓ Sua empresa está com fluxo de caixa {balance >= 0 ? "positivo" : "negativo"}
+                ✓ Sua empresa está com fluxo de caixa {summary.balance >= 0 ? "positivo" : "negativo"}
               </p>
               <p>
-                ✓ Margem de lucro de {margemLucro}%{" "}
-                {parseFloat(margemLucro) > 15 ? "(saudável)" : "(atenção necessária)"}
+                ✓ Margem de lucro de {summary.margemLucro}%{" "}
+                {parseFloat(summary.margemLucro) > 15 ? "(saudável)" : "(atenção necessária)"}
               </p>
               <p>
-                {overdueCount > 0
-                  ? `⚠ Atenção: ${overdueCount} conta(s) vencida(s)`
+                {summary.overdueCount > 0
+                  ? `⚠ Atenção: ${summary.overdueCount} conta(s) vencida(s)`
                   : "✓ Nenhuma conta vencida"}
               </p>
               <p className="break-words">
                 ✓ Previsão de caixa para próximo mês: R${" "}
-                {(balance + pendingIncome - pendingExpense).toLocaleString("pt-BR")}
+                {(summary.balance + summary.pendingIncome - summary.pendingExpense).toLocaleString("pt-BR")}
               </p>
             </CardContent>
           </Card>

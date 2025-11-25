@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Save, Key, Webhook, ChevronRight } from "lucide-react"
+import Link from "next/link"
 import { ImageUpload } from "@/components/ui/image-upload"
 
 const settingsSchema = z.object({
@@ -278,6 +279,34 @@ export default function ConfiguracoesPage() {
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Integrações */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide">Integrações</CardTitle>
+            <CardDescription>
+              Configure chaves de API e webhooks para integração externa
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/configuracoes/integracoes">
+              <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Key className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Chaves de API & Webhooks</p>
+                    <p className="text-sm text-muted-foreground">
+                      Gerencie autenticação e notificações em tempo real
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </Link>
           </CardContent>
         </Card>
 

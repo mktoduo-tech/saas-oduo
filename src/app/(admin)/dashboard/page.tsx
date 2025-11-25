@@ -220,47 +220,85 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {stats?.recentBookings && stats.recentBookings.length > 0 ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {stats.recentBookings.map((booking) => (
                   <div
                     key={booking.id}
-                    className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300"
+                    className="group p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all duration-300"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
-                        <Calendar className="h-5 w-5 text-blue-400" />
+                    {/* Mobile Layout */}
+                    <div className="flex flex-col gap-3 sm:hidden">
+                      {/* Header: Nome + Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="h-9 w-9 flex-shrink-0 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
+                            <Calendar className="h-4 w-4 text-blue-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-white truncate">{booking.customer.name}</p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {booking.equipment.name}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          className={`${statusColors[booking.status as keyof typeof statusColors]} border flex-shrink-0 text-xs`}
+                          variant="outline"
+                        >
+                          {statusLabels[booking.status as keyof typeof statusLabels]}
+                        </Badge>
                       </div>
-                      <div>
-                        <p className="font-medium text-white">{booking.customer.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {booking.equipment.name}
+
+                      {/* Footer: Data + Preço */}
+                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">{formatDate(booking.startDate)}</span>
+                          <span className="text-muted-foreground mx-1">→</span>
+                          <span className="text-muted-foreground">{formatDate(booking.endDate)}</span>
+                        </div>
+                        <p className="font-bold text-white text-base">
+                          {formatCurrency(booking.totalPrice)}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-6 flex-1">
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-white">
-                          {formatDate(booking.startDate)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          até {formatDate(booking.endDate)}
-                        </p>
+                    {/* Desktop Layout */}
+                    <div className="hidden sm:flex sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
+                          <Calendar className="h-5 w-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-white">{booking.customer.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {booking.equipment.name}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="text-right min-w-[80px]">
-                        <p className="font-bold text-white">
-                          {formatCurrency(booking.totalPrice)}
-                        </p>
-                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-white">
+                            {formatDate(booking.startDate)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            até {formatDate(booking.endDate)}
+                          </p>
+                        </div>
 
-                      <Badge
-                        className={`${statusColors[booking.status as keyof typeof statusColors]
-                          } border`}
-                        variant="outline"
-                      >
-                        {statusLabels[booking.status as keyof typeof statusLabels]}
-                      </Badge>
+                        <div className="text-right min-w-[100px]">
+                          <p className="font-bold text-white">
+                            {formatCurrency(booking.totalPrice)}
+                          </p>
+                        </div>
+
+                        <Badge
+                          className={`${statusColors[booking.status as keyof typeof statusColors]} border min-w-[90px] justify-center`}
+                          variant="outline"
+                        >
+                          {statusLabels[booking.status as keyof typeof statusLabels]}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 ))}

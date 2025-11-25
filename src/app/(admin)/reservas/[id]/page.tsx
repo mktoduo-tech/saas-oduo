@@ -129,13 +129,20 @@ export default function EditReservaPage({
           const bookingData = await bookingRes.json()
           setBooking(bookingData)
 
-          // Format dates for input
-          const startDate = new Date(bookingData.startDate)
-            .toISOString()
-            .split("T")[0]
-          const endDate = new Date(bookingData.endDate)
-            .toISOString()
-            .split("T")[0]
+          // Format dates for input with validation
+          const formatDateForInput = (dateValue: string | Date | null | undefined): string => {
+            if (!dateValue) return ""
+            try {
+              const date = new Date(dateValue)
+              if (isNaN(date.getTime())) return ""
+              return date.toISOString().split("T")[0]
+            } catch {
+              return ""
+            }
+          }
+
+          const startDate = formatDateForInput(bookingData.startDate)
+          const endDate = formatDateForInput(bookingData.endDate)
 
           reset({
             customerId: bookingData.customerId,

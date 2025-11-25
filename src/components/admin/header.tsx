@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
-import { Bell, Search, Menu, LogOut, User, Settings, CreditCard } from "lucide-react"
+import { Bell, Search, Menu, LogOut, User, Settings, CreditCard, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -24,6 +24,15 @@ import {
     SheetTrigger,
 } from "@/components/ui/sheet"
 
+interface Notification {
+    id: string
+    type: "info" | "warning" | "success"
+    title: string
+    message: string
+    time: string
+    link?: string
+}
+
 interface HeaderProps {
     user?: {
         name?: string | null
@@ -36,17 +45,53 @@ interface HeaderProps {
 export function Header({ user, onMenuClick }: HeaderProps) {
     const router = useRouter()
     const [notificationsOpen, setNotificationsOpen] = useState(false)
+    const [notifications, setNotifications] = useState<Notification[]>([])
+    const [unreadCount, setUnreadCount] = useState(0)
+    const [loadingNotifications, setLoadingNotifications] = useState(true)
+
+    useEffect(() => {
+        fetchNotifications()
+        // Atualizar notificações a cada 2 minutos
+        const interval = setInterval(fetchNotifications, 120000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const fetchNotifications = async () => {
+        try {
+            const response = await fetch("/api/notifications")
+            if (response.ok) {
+                const data = await response.json()
+                setNotifications(data.notifications || [])
+                setUnreadCount(data.unreadCount || 0)
+            }
+        } catch (error) {
+            console.error("Erro ao buscar notificações:", error)
+        } finally {
+            setLoadingNotifications(false)
+        }
+    }
 
     const handleLogout = async () => {
         await signOut({ callbackUrl: "/login" })
     }
 
-    // Notifications mock data
-    const notifications = [
-        { id: 1, title: "Nova reserva", message: "Cliente João fez uma nova reserva", time: "5 min" },
-        { id: 2, title: "Pagamento recebido", message: "Pagamento de R$ 150,00 confirmado", time: "1h" },
-        { id: 3, title: "Equipamento devolvido", message: "Betoneira 400L foi devolvida", time: "2h" },
-    ]
+    const handleNotificationClick = (notification: Notification) => {
+        if (notification.link) {
+            router.push(notification.link)
+            setNotificationsOpen(false)
+        }
+    }
+
+    const getNotificationIcon = (type: string) => {
+        switch (type) {
+            case "warning":
+                return "⚠️"
+            case "success":
+                return "✅"
+            default:
+                return "ℹ️"
+        }
+    }
 
     return (
         <div className="border-b border-white/10 bg-gray-900/50 backdrop-blur-xl h-16 px-4 flex items-center justify-between sticky top-0 z-50">
@@ -69,7 +114,11 @@ export function Header({ user, onMenuClick }: HeaderProps) {
                     <SheetTrigger asChild>
                         <Button variant="ghost" size="icon" className="relative text-zinc-400 hover:text-white hover:bg-white/5">
                             <Bell className="h-5 w-5" />
-                            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] flex items-center justify-center text-[10px] font-bold text-white">
+                                    {unreadCount > 9 ? "9+" : unreadCount}
+                                </span>
+                            )}
                         </Button>
                     </SheetTrigger>
                     <SheetContent className="bg-gray-900 border-white/10">
@@ -77,19 +126,34 @@ export function Header({ user, onMenuClick }: HeaderProps) {
                             <SheetTitle className="text-white">Notificações</SheetTitle>
                         </SheetHeader>
                         <div className="mt-6 space-y-4">
-                            {notifications.map((notification) => (
-                                <div
-                                    key={notification.id}
-                                    className="p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-colors"
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <h4 className="font-medium text-white text-sm">{notification.title}</h4>
-                                        <span className="text-xs text-zinc-500">{notification.time}</span>
-                                    </div>
-                                    <p className="text-sm text-zinc-400 mt-1">{notification.message}</p>
+                            {loadingNotifications ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
                                 </div>
-                            ))}
-                            {notifications.length === 0 && (
+                            ) : notifications.length > 0 ? (
+                                notifications.map((notification) => (
+                                    <div
+                                        key={notification.id}
+                                        onClick={() => handleNotificationClick(notification)}
+                                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                                            notification.type === "warning"
+                                                ? "bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20"
+                                                : notification.type === "success"
+                                                ? "bg-green-500/10 hover:bg-green-500/20 border border-green-500/20"
+                                                : "bg-white/5 hover:bg-white/10"
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-2">
+                                                <span>{getNotificationIcon(notification.type)}</span>
+                                                <h4 className="font-medium text-white text-sm">{notification.title}</h4>
+                                            </div>
+                                            <span className="text-xs text-zinc-500">{notification.time}</span>
+                                        </div>
+                                        <p className="text-sm text-zinc-400 mt-1 pl-6">{notification.message}</p>
+                                    </div>
+                                ))
+                            ) : (
                                 <p className="text-center text-zinc-500 py-8">Nenhuma notificação</p>
                             )}
                         </div>

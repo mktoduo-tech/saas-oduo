@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
+import { WEBHOOK_EVENTS } from "../route"
 
 const prisma = new PrismaClient()
 
-// GET - Buscar reserva por ID
+// GET - Buscar webhook específico
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,29 +19,25 @@ export async function GET(
 
     const { id } = await params
 
-    const booking = await prisma.booking.findFirst({
+    const webhook = await prisma.webhook.findFirst({
       where: {
         id,
         tenantId: session.user.tenantId,
       },
-      include: {
-        equipment: true,
-        customer: true,
-      },
     })
 
-    if (!booking) {
+    if (!webhook) {
       return NextResponse.json(
-        { error: "Reserva não encontrada" },
+        { error: "Webhook não encontrado" },
         { status: 404 }
       )
     }
 
-    return NextResponse.json(booking, { status: 200 })
+    return NextResponse.json(webhook, { status: 200 })
   } catch (error) {
-    console.error("Erro ao buscar reserva:", error)
+    console.error("Erro ao buscar Webhook:", error)
     return NextResponse.json(
-      { error: "Erro ao buscar reserva" },
+      { error: "Erro ao buscar Webhook" },
       { status: 500 }
     )
   } finally {
@@ -48,7 +45,7 @@ export async function GET(
   }
 }
 
-// PUT - Atualizar reserva
+// PUT - Atualizar webhook
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,36 +59,57 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { status, startDate, endDate, startTime, endTime, totalPrice, notes } = body
+    const { name, url, events, active } = body
 
-    const booking = await prisma.booking.updateMany({
+    // Validar URL se fornecida
+    if (url) {
+      try {
+        new URL(url)
+      } catch {
+        return NextResponse.json(
+          { error: "URL inválida" },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validar eventos se fornecidos
+    let validEvents
+    if (events) {
+      validEvents = events.filter((e: string) => WEBHOOK_EVENTS.includes(e))
+      if (validEvents.length === 0) {
+        return NextResponse.json(
+          { error: "Selecione pelo menos um evento válido" },
+          { status: 400 }
+        )
+      }
+    }
+
+    const result = await prisma.webhook.updateMany({
       where: {
         id,
         tenantId: session.user.tenantId,
       },
       data: {
-        ...(status && { status }),
-        ...(startDate && { startDate: new Date(startDate) }),
-        ...(endDate && { endDate: new Date(endDate) }),
-        ...(startTime !== undefined && { startTime }),
-        ...(endTime !== undefined && { endTime }),
-        ...(totalPrice && { totalPrice: parseFloat(totalPrice) }),
-        ...(notes !== undefined && { notes }),
+        ...(name && { name }),
+        ...(url && { url }),
+        ...(validEvents && { events: validEvents }),
+        ...(active !== undefined && { active }),
       },
     })
 
-    if (booking.count === 0) {
+    if (result.count === 0) {
       return NextResponse.json(
-        { error: "Reserva não encontrada" },
+        { error: "Webhook não encontrado" },
         { status: 404 }
       )
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
-    console.error("Erro ao atualizar reserva:", error)
+    console.error("Erro ao atualizar Webhook:", error)
     return NextResponse.json(
-      { error: "Erro ao atualizar reserva" },
+      { error: "Erro ao atualizar Webhook" },
       { status: 500 }
     )
   } finally {
@@ -99,7 +117,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Deletar/Cancelar reserva
+// DELETE - Deletar webhook
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -113,29 +131,25 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Em vez de deletar, vamos cancelar
-    const booking = await prisma.booking.updateMany({
+    const result = await prisma.webhook.deleteMany({
       where: {
         id,
         tenantId: session.user.tenantId,
       },
-      data: {
-        status: "CANCELLED",
-      },
     })
 
-    if (booking.count === 0) {
+    if (result.count === 0) {
       return NextResponse.json(
-        { error: "Reserva não encontrada" },
+        { error: "Webhook não encontrado" },
         { status: 404 }
       )
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
-    console.error("Erro ao cancelar reserva:", error)
+    console.error("Erro ao deletar Webhook:", error)
     return NextResponse.json(
-      { error: "Erro ao cancelar reserva" },
+      { error: "Erro ao deletar Webhook" },
       { status: 500 }
     )
   } finally {
