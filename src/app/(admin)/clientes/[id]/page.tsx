@@ -175,7 +175,7 @@ export default function EditClientePage({
           </p>
         </div>
         <Badge variant="secondary">
-          {customer.bookings.length} reservas
+          {customer.bookings?.length || 0} reservas
         </Badge>
       </div>
 
@@ -327,7 +327,7 @@ export default function EditClientePage({
         </Card>
 
         {/* Histórico de Reservas */}
-        {customer.bookings.length > 0 && (
+        {customer.bookings && customer.bookings.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="font-headline tracking-wide">Histórico de Reservas</CardTitle>

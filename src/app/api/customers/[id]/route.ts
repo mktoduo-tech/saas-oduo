@@ -40,7 +40,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ customer }, { status: 200 })
+    return NextResponse.json(customer, { status: 200 })
   } catch (error) {
     console.error("Erro ao buscar cliente:", error)
     return NextResponse.json(
