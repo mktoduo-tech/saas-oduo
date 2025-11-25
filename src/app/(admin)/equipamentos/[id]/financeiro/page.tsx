@@ -291,8 +291,22 @@ export default function EquipmentFinancialPage() {
             Análise financeira • {data.equipment.category}
           </p>
         </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 border-b pb-2">
         <Link href={`/equipamentos/${id}`}>
-          <Button variant="outline">Ver Equipamento</Button>
+          <Button variant="ghost" size="sm">
+            Editar
+          </Button>
+        </Link>
+        <Button variant="secondary" size="sm">
+          Financeiro
+        </Button>
+        <Link href={`/equipamentos/${id}/documentos`}>
+          <Button variant="ghost" size="sm">
+            Documentos
+          </Button>
         </Link>
       </div>
 

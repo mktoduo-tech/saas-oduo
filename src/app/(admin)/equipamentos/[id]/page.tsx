@@ -163,6 +163,23 @@ export default function EditarEquipamentoPage({
         </p>
       </div>
 
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 border-b pb-2">
+        <Button variant="secondary" size="sm">
+          Editar
+        </Button>
+        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
+          <Button variant="ghost" size="sm">
+            Financeiro
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
+          <Button variant="ghost" size="sm">
+            Documentos
+          </Button>
+        </Link>
+      </div>
+
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)}>
         <Card>
