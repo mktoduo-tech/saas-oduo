@@ -31,6 +31,10 @@ model Tenant {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Templates de documentos
+  contractTemplate  String?  @db.Text
+  receiptTemplate   String?  @db.Text
+
   users           User[]
   equipments      Equipment[]
   bookings        Booking[]
@@ -38,6 +42,7 @@ model Tenant {
   activityLogs    ActivityLog[]
   apiKeys         ApiKey[]
   webhooks        Webhook[]
+  equipmentCosts  EquipmentCost[]
 }
 
 // Usuário (Admin da locadora)
@@ -93,11 +98,17 @@ model Equipment {
   quantity      Int      @default(1)
   status        EquipmentStatus @default(AVAILABLE)
 
+  // Dados de aquisição
+  purchasePrice Float?
+  purchaseDate  DateTime?
+
   tenantId      String
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   bookings      Booking[]
   unavailableDates UnavailableDate[]
+  costs         EquipmentCost[]
+  documents     EquipmentDocument[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -183,6 +194,8 @@ model Booking {
 
   googleEventId   String?
 
+  documents       BookingDocument[]
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -265,4 +278,80 @@ model Webhook {
   updatedAt   DateTime @updatedAt
 
   @@index([tenantId, active])
+}
+
+// Custos do Equipamento (manutenção, seguro, combustível, etc)
+model EquipmentCost {
+  id            String    @id @default(cuid())
+  type          CostType
+  description   String
+  amount        Float
+  date          DateTime
+  recurring     Boolean   @default(false)
+
+  equipmentId   String
+  equipment     Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime  @default(now())
+
+  @@index([equipmentId, date])
+  @@index([tenantId, type])
+}
+
+enum CostType {
+  PURCHASE      // Compra inicial
+  MAINTENANCE   // Manutenção
+  INSURANCE     // Seguro
+  FUEL          // Combustível
+  REPAIR        // Reparo
+  DEPRECIATION  // Depreciação
+  OTHER         // Outros
+}
+
+// Documentos anexados ao Equipamento (manuais, garantias, etc)
+model EquipmentDocument {
+  id            String    @id @default(cuid())
+  name          String
+  type          DocType
+  url           String
+  fileSize      Int?
+
+  equipmentId   String
+  equipment     Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  uploadedAt    DateTime  @default(now())
+
+  @@index([equipmentId])
+}
+
+enum DocType {
+  MANUAL        // Manual do equipamento
+  WARRANTY      // Garantia
+  CERTIFICATE   // Certificado
+  INVOICE       // Nota fiscal de compra
+  OTHER         // Outros
+}
+
+// Documentos gerados para Reservas (contrato, recibo, nota)
+model BookingDocument {
+  id            String         @id @default(cuid())
+  type          BookingDocType
+  url           String
+  generatedAt   DateTime       @default(now())
+  sentAt        DateTime?
+  sentTo        String?
+
+  bookingId     String
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+enum BookingDocType {
+  CONTRACT      // Contrato de locação
+  RECEIPT       // Recibo
+  INVOICE       // Nota fiscal
 }
