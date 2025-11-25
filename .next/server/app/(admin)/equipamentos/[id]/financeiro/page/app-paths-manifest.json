@@ -1,0 +1,3 @@
+{
+  "/(admin)/equipamentos/[id]/financeiro/page": "app/(admin)/equipamentos/[id]/financeiro/page.js"
+}

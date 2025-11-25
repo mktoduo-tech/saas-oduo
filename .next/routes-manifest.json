@@ -53,6 +53,31 @@
       "namedRegex": "^/api/equipments/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/equipments/[id]/costs",
+      "regex": "^/api/equipments/([^/]+?)/costs(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/equipments/(?<nxtPid>[^/]+?)/costs(?:/)?$"
+    },
+    {
+      "page": "/api/equipments/[id]/costs/[costId]",
+      "regex": "^/api/equipments/([^/]+?)/costs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid",
+        "nxtPcostId": "nxtPcostId"
+      },
+      "namedRegex": "^/api/equipments/(?<nxtPid>[^/]+?)/costs/(?<nxtPcostId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/financial/equipment/[id]",
+      "regex": "^/api/financial/equipment/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/financial/equipment/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/storefront/[tenant]/bookings",
       "regex": "^/api/storefront/([^/]+?)/bookings(?:/)?$",
       "routeKeys": {
@@ -92,6 +117,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/equipamentos/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/equipamentos/[id]/financeiro",
+      "regex": "^/equipamentos/([^/]+?)/financeiro(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/equipamentos/(?<nxtPid>[^/]+?)/financeiro(?:/)?$"
     },
     {
       "page": "/reservas/[id]",
@@ -195,6 +228,18 @@
       "namedRegex": "^/api/equipments(?:/)?$"
     },
     {
+      "page": "/api/financial/overview",
+      "regex": "^/api/financial/overview(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/financial/overview(?:/)?$"
+    },
+    {
+      "page": "/api/financial/profitability",
+      "regex": "^/api/financial/profitability(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/financial/profitability(?:/)?$"
+    },
+    {
       "page": "/api/payment/process",
       "regex": "^/api/payment/process(?:/)?$",
       "routeKeys": {},
@@ -205,6 +250,12 @@
       "regex": "^/api/register(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/register(?:/)?$"
+    },
+    {
+      "page": "/api/tenant/settings",
+      "regex": "^/api/tenant/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/tenant/settings(?:/)?$"
     },
     {
       "page": "/auth/error",
