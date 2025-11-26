@@ -32,12 +32,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 tenantSlug: { label: "Tenant", type: "text" },
             },
             authorize: async (credentials) => {
+                console.log("[AUTH] Iniciando authorize...")
                 try {
                     if (!credentials?.email || !credentials?.password) {
+                        console.log("[AUTH] Credenciais faltando")
                         return null
                     }
 
                     const tenantSlug = credentials.tenantSlug as string | undefined
+                    console.log("[AUTH] Email:", credentials.email, "TenantSlug:", tenantSlug || "null")
 
                     // Buscar usuário no banco de dados
                     const user = await prisma.user.findUnique({
@@ -46,21 +49,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     })
 
                     if (!user) {
+                        console.log("[AUTH] Usuário não encontrado")
                         return null
                     }
+                    console.log("[AUTH] Usuário encontrado:", user.email, "Role:", user.role, "Tenant:", user.tenant.slug)
 
                     // Validação de tenant: se acessando via subdomínio, usuário deve pertencer ao tenant
                     // SUPER_ADMIN pode acessar de qualquer subdomínio
                     if (tenantSlug && user.role !== "SUPER_ADMIN") {
                         if (user.tenant.slug !== tenantSlug) {
-                            console.warn(`Tentativa de login em tenant incorreto: ${tenantSlug} por usuário do tenant ${user.tenant.slug}`)
+                            console.warn(`[AUTH] Tentativa de login em tenant incorreto: ${tenantSlug} por usuário do tenant ${user.tenant.slug}`)
                             return null
                         }
                     }
 
                     // Verifica se o tenant está ativo (exceto SUPER_ADMIN)
                     if (user.role !== "SUPER_ADMIN" && !user.tenant.active) {
-                        console.warn(`Tentativa de login em tenant inativo: ${user.tenant.slug}`)
+                        console.warn(`[AUTH] Tentativa de login em tenant inativo: ${user.tenant.slug}`)
                         return null
                     }
 
@@ -69,13 +74,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         credentials.password as string,
                         user.passwordHash
                     )
+                    console.log("[AUTH] Password match:", passwordMatch)
 
                     if (!passwordMatch) {
+                        console.log("[AUTH] Senha incorreta")
                         return null
                     }
 
                     // Retornar dados do usuário
-                    return {
+                    const userData = {
                         id: user.id,
                         name: user.name,
                         email: user.email,
@@ -84,8 +91,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         tenantSlug: user.tenant.slug,
                         role: user.role,
                     }
+                    console.log("[AUTH] Login bem sucedido! Retornando:", JSON.stringify(userData))
+                    return userData
                 } catch (error) {
-                    console.error("Erro na autenticação:", error)
+                    console.error("[AUTH] Erro na autenticação:", error)
                     return null
                 }
             },
