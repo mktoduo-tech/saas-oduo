@@ -74,13 +74,13 @@ export async function GET(
     })
 
     // Total geral
-    const totalCosts = (totalsByType as any[]).reduce((sum: number, item: any) => sum + (item._sum?.amount || 0), 0)
+    const totalCosts = totalsByType.reduce((sum, item) => sum + (item._sum.amount || 0), 0)
 
     return NextResponse.json({
       costs,
-      totalsByType: (totalsByType as any[]).map((item: any) => ({
+      totalsByType: totalsByType.map((item) => ({
         type: item.type,
-        total: item._sum?.amount || 0,
+        total: item._sum.amount || 0,
       })),
       totalCosts,
     })
