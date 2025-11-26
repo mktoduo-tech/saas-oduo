@@ -7,8 +7,11 @@ import bcrypt from "bcryptjs"
 const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.split(":")[0] || ""
 const isProduction = process.env.NODE_ENV === "production"
 
+console.log("[AUTH CONFIG] rootDomain:", rootDomain, "isProduction:", isProduction)
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     secret: process.env.AUTH_SECRET,
+    trustHost: true,
     // Configurar cookies para funcionar em todos os subdomínios
     cookies: {
         sessionToken: {
@@ -18,7 +21,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 sameSite: "lax",
                 path: "/",
                 secure: isProduction,
-                // Domínio com ponto no início permite todos os subdomínios
+                // Domínio com ponto no início permite todos os subdomínios (incluindo www)
                 domain: isProduction && rootDomain ? `.${rootDomain}` : undefined,
             },
         },
