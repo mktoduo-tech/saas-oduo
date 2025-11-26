@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const totalRevenue = completedBookings._sum.totalPrice || 0
+    const totalRevenue = (completedBookings as any)._sum?.totalPrice || 0
 
     // Equipamentos disponíveis
     const availableEquipments = await prisma.equipment.count({
@@ -93,8 +93,8 @@ export async function GET(request: NextRequest) {
     })
 
     // Calcular reservas ativas e pendentes
-    const activeBookings = bookingsByStatus.find((item) => item.status === "CONFIRMED")?._count.status || 0
-    const pendingBookings = bookingsByStatus.find((item) => item.status === "PENDING")?._count.status || 0
+    const activeBookings = (bookingsByStatus as any[]).find((item: any) => item.status === "CONFIRMED")?._count?.status || 0
+    const pendingBookings = (bookingsByStatus as any[]).find((item: any) => item.status === "PENDING")?._count?.status || 0
 
     // Calcular receita do mês atual
     const now = new Date()
@@ -141,8 +141,8 @@ export async function GET(request: NextRequest) {
         },
         revenue: {
           total: totalRevenue,
-          thisMonth: thisMonthRevenue._sum.totalPrice || 0,
-          pending: pendingRevenue._sum.totalPrice || 0,
+          thisMonth: (thisMonthRevenue as any)._sum?.totalPrice || 0,
+          pending: (pendingRevenue as any)._sum?.totalPrice || 0,
         },
         recentBookings: recentBookings.map((booking) => ({
           id: booking.id,
