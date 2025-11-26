@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
+import { bookingItemSchema } from "@/lib/validations/stock"
+import { calculateRentalPrice } from "@/lib/pricing"
+import { z } from "zod"
 
 // GET - Listar reservas
 export async function GET(request: NextRequest) {
@@ -24,6 +25,19 @@ export async function GET(request: NextRequest) {
       include: {
         equipment: true,
         customer: true,
+        items: {
+          include: {
+            equipment: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                images: true,
+                pricePerDay: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     })
@@ -35,53 +49,55 @@ export async function GET(request: NextRequest) {
       { error: "Erro ao buscar reservas" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
+
+// Schema para criação de reserva com itens
+const createBookingSchema = z.object({
+  customerId: z.string().min(1, "Cliente é obrigatório"),
+  startDate: z.string().min(1, "Data de início é obrigatória"),
+  endDate: z.string().min(1, "Data de fim é obrigatória"),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  notes: z.string().optional(),
+  // Suporte legado (único equipamento)
+  equipmentId: z.string().optional(),
+  totalPrice: z.number().optional(),
+  // Novo sistema multi-item
+  items: z.array(bookingItemSchema).optional(),
+})
 
 // POST - Criar reserva
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
 
-    if (!session?.user?.tenantId) {
+    if (!session?.user?.tenantId || !session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const body = await request.json()
+
+    // Validar input
+    const validation = createBookingSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Dados inválidos", details: validation.error.flatten() },
+        { status: 400 }
+      )
+    }
+
     const {
-      equipmentId,
       customerId,
       startDate,
       endDate,
       startTime,
       endTime,
-      totalPrice,
       notes,
-    } = body
-
-    if (!equipmentId || !customerId || !startDate || !endDate || !totalPrice) {
-      return NextResponse.json(
-        { error: "Campos obrigatórios: equipmentId, customerId, startDate, endDate, totalPrice" },
-        { status: 400 }
-      )
-    }
-
-    // Verificar se o equipamento existe e pertence ao tenant
-    const equipment = await prisma.equipment.findFirst({
-      where: {
-        id: equipmentId,
-        tenantId: session.user.tenantId,
-      },
-    })
-
-    if (!equipment) {
-      return NextResponse.json(
-        { error: "Equipamento não encontrado" },
-        { status: 404 }
-      )
-    }
+      equipmentId,
+      totalPrice,
+      items,
+    } = validation.data
 
     // Verificar se o cliente existe e pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -98,52 +114,243 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verificar disponibilidade
-    const conflictingBookings = await prisma.booking.findMany({
-      where: {
-        equipmentId,
-        status: { in: ["PENDING", "CONFIRMED"] },
-        OR: [
-          {
-            AND: [
-              { startDate: { lte: new Date(startDate) } },
-              { endDate: { gte: new Date(startDate) } },
-            ],
-          },
-          {
-            AND: [
-              { startDate: { lte: new Date(endDate) } },
-              { endDate: { gte: new Date(endDate) } },
-            ],
-          },
-        ],
-      },
-    })
+    const start = new Date(startDate)
+    const end = new Date(endDate)
 
-    if (conflictingBookings.length > 0) {
+    // Determinar se é reserva legada (único equipamento) ou nova (multi-item)
+    const isLegacyBooking = equipmentId && !items?.length
+    const bookingItems = items || []
+
+    // Calcular dias de locação
+    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    // Se legado, criar item virtual para validação
+    if (isLegacyBooking && equipmentId) {
+      const equipment = await prisma.equipment.findFirst({
+        where: {
+          id: equipmentId,
+          tenantId: session.user.tenantId,
+        },
+      })
+
+      if (!equipment) {
+        return NextResponse.json(
+          { error: "Equipamento não encontrado" },
+          { status: 404 }
+        )
+      }
+
+      // Calcular preço usando os períodos de locação
+      const priceResult = await calculateRentalPrice(equipmentId, days, 1)
+
+      bookingItems.push({
+        equipmentId,
+        quantity: 1,
+        unitPrice: priceResult.pricePerDay,
+      })
+    }
+
+    if (bookingItems.length === 0) {
       return NextResponse.json(
-        { error: "Equipamento não disponível para este período" },
-        { status: 409 }
+        { error: "A reserva deve ter pelo menos um equipamento" },
+        { status: 400 }
       )
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        equipmentId,
-        customerId,
+    // Validar disponibilidade de todos os itens
+    const equipmentIds = bookingItems.map(item => item.equipmentId)
+    const equipments = await prisma.equipment.findMany({
+      where: {
+        id: { in: equipmentIds },
         tenantId: session.user.tenantId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        startTime,
-        endTime,
-        totalPrice: parseFloat(totalPrice),
-        notes,
-        status: "PENDING",
       },
-      include: {
-        equipment: true,
-        customer: true,
-      },
+    })
+
+    if (equipments.length !== equipmentIds.length) {
+      return NextResponse.json(
+        { error: "Um ou mais equipamentos não foram encontrados" },
+        { status: 404 }
+      )
+    }
+
+    // Verificar disponibilidade para cada equipamento
+    for (const item of bookingItems) {
+      const equipment = equipments.find(e => e.id === item.equipmentId)!
+
+      // Verificar estoque disponível
+      if (equipment.availableStock < item.quantity) {
+        return NextResponse.json(
+          {
+            error: `Estoque insuficiente para "${equipment.name}". Disponível: ${equipment.availableStock}, Solicitado: ${item.quantity}`,
+          },
+          { status: 400 }
+        )
+      }
+
+      // Verificar conflitos com outras reservas no período (legado)
+      const conflictingLegacy = await prisma.booking.count({
+        where: {
+          equipmentId: item.equipmentId,
+          status: { in: ["PENDING", "CONFIRMED"] },
+          OR: [
+            { startDate: { gte: start, lte: end } },
+            { endDate: { gte: start, lte: end } },
+            { startDate: { lte: start }, endDate: { gte: end } },
+          ],
+        },
+      })
+
+      // Verificar conflitos com BookingItems no período
+      const conflictingItems = await prisma.bookingItem.aggregate({
+        where: {
+          equipmentId: item.equipmentId,
+          booking: {
+            status: { in: ["PENDING", "CONFIRMED"] },
+            OR: [
+              { startDate: { gte: start, lte: end } },
+              { endDate: { gte: start, lte: end } },
+              { startDate: { lte: start }, endDate: { gte: end } },
+            ],
+          },
+        },
+        _sum: { quantity: true },
+      })
+
+      const totalReservedInPeriod = conflictingLegacy + (conflictingItems._sum.quantity || 0)
+      const availableForPeriod = equipment.totalStock - equipment.maintenanceStock - equipment.damagedStock - totalReservedInPeriod
+
+      if (availableForPeriod < item.quantity) {
+        return NextResponse.json(
+          {
+            error: `"${equipment.name}" não disponível para o período. Disponível: ${availableForPeriod}, Solicitado: ${item.quantity}`,
+          },
+          { status: 409 }
+        )
+      }
+    }
+
+    // Calcular preço total usando os períodos de locação
+    let calculatedTotalPrice = 0
+    const itemPrices: Map<string, { unitPrice: number; totalPrice: number }> = new Map()
+
+    for (const item of bookingItems) {
+      // Se unitPrice já foi fornecido (ex: do frontend), usar ele
+      // Caso contrário, calcular baseado nos períodos
+      if (item.unitPrice) {
+        const itemTotal = item.unitPrice * item.quantity * days
+        calculatedTotalPrice += itemTotal
+        itemPrices.set(item.equipmentId, { unitPrice: item.unitPrice, totalPrice: itemTotal })
+      } else {
+        const priceResult = await calculateRentalPrice(item.equipmentId, days, item.quantity)
+        calculatedTotalPrice += priceResult.totalPrice
+        itemPrices.set(item.equipmentId, { unitPrice: priceResult.pricePerDay, totalPrice: priceResult.totalPrice })
+      }
+    }
+
+    const finalTotalPrice = totalPrice || calculatedTotalPrice
+
+    // Criar reserva em transação
+    const booking = await prisma.$transaction(async (tx) => {
+      // Criar a reserva
+      const newBooking = await tx.booking.create({
+        data: {
+          customerId,
+          tenantId: session.user.tenantId,
+          startDate: start,
+          endDate: end,
+          startTime,
+          endTime,
+          totalPrice: finalTotalPrice,
+          notes,
+          status: "PENDING",
+          // Manter equipmentId legado se for reserva simples
+          equipmentId: isLegacyBooking ? equipmentId : null,
+        },
+      })
+
+      // Criar BookingItems
+      for (const item of bookingItems) {
+        const equipment = equipments.find(e => e.id === item.equipmentId)!
+        const prices = itemPrices.get(item.equipmentId)!
+
+        await tx.bookingItem.create({
+          data: {
+            bookingId: newBooking.id,
+            equipmentId: item.equipmentId,
+            quantity: item.quantity,
+            unitPrice: prices.unitPrice,
+            totalPrice: prices.totalPrice,
+            notes: item.notes,
+          },
+        })
+
+        // Atualizar estoque do equipamento
+        await tx.equipment.update({
+          where: { id: item.equipmentId },
+          data: {
+            availableStock: { decrement: item.quantity },
+            reservedStock: { increment: item.quantity },
+          },
+        })
+
+        // Registrar movimentação de estoque
+        await tx.stockMovement.create({
+          data: {
+            type: "RENTAL_OUT",
+            quantity: item.quantity,
+            previousStock: equipment.availableStock,
+            newStock: equipment.availableStock - item.quantity,
+            reason: `Reserva #${newBooking.bookingNumber}`,
+            equipmentId: item.equipmentId,
+            bookingId: newBooking.id,
+            userId: session.user.id,
+            tenantId: session.user.tenantId,
+          },
+        })
+      }
+
+      // Buscar reserva completa com relações
+      const completeBooking = await tx.booking.findUnique({
+        where: { id: newBooking.id },
+        include: {
+          equipment: true,
+          customer: true,
+          items: {
+            include: {
+              equipment: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                  images: true,
+                  pricePerDay: true,
+                },
+              },
+            },
+          },
+        },
+      })
+
+      // Registrar atividade
+      await tx.activityLog.create({
+        data: {
+          action: "CREATE",
+          entity: "BOOKING",
+          entityId: newBooking.id,
+          description: `Nova reserva #${newBooking.bookingNumber} criada para ${customer.name}`,
+          metadata: {
+            customerId,
+            totalPrice: finalTotalPrice,
+            itemsCount: bookingItems.length,
+            startDate: start.toISOString(),
+            endDate: end.toISOString(),
+          },
+          userId: session.user.id,
+          tenantId: session.user.tenantId,
+        },
+      })
+
+      return completeBooking
     })
 
     return NextResponse.json({ booking }, { status: 201 })
@@ -153,7 +360,5 @@ export async function POST(request: NextRequest) {
       { error: "Erro ao criar reserva" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

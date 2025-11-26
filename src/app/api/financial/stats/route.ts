@@ -79,6 +79,11 @@ export async function GET() {
         include: {
           customer: { select: { name: true } },
           equipment: { select: { name: true } },
+          items: {
+            include: {
+              equipment: { select: { name: true } },
+            },
+          },
         },
       }),
 
@@ -98,9 +103,10 @@ export async function GET() {
     // Formatar transações para o fluxo de caixa
     const transactions = recentBookings.map((booking) => ({
       id: booking.id,
+      bookingId: booking.id,
       type: "income" as const,
       category: "Locação",
-      description: `${booking.equipment.name} - ${booking.customer.name}`,
+      description: `${booking.equipment?.name || booking.items[0]?.equipment?.name || "Equipamento"} - ${booking.customer.name}`,
       amount: booking.totalPrice,
       date: booking.createdAt.toISOString(),
       status: booking.paidAt ? "paid" : booking.status === "CANCELLED" ? "cancelled" : "pending",
@@ -141,19 +147,27 @@ export async function GET() {
       despesas: await getDespesasByCategory(tenantId),
     }
 
+    // Calcular DRE totais
+    const totalReceitas = totalIncome + totalPending
+    const totalDespesas = totalExpenses
+    const lucroLiquido = totalIncome - totalExpenses
+    const margemLucro = totalReceitas > 0 ? ((lucroLiquido / totalReceitas) * 100).toFixed(1) : "0"
+
     return NextResponse.json({
-      overview: {
-        balance,
-        totalIncome,
-        totalPending,
-        totalExpenses,
-        monthlyIncome: monthlyBookings._sum.totalPrice || 0,
-        monthlyBookingsCount: monthlyBookings._count.id,
-        pendingCount: pendingBookings._count.id,
-        overdueCount: 0, // TODO: calcular baseado em datas de vencimento
-      },
       transactions: allTransactions,
       dre,
+      summary: {
+        totalIncome,
+        totalExpense: totalExpenses,
+        balance,
+        pendingIncome: totalPending,
+        pendingExpense: 0, // TODO: implementar despesas pendentes
+        overdueCount: 0, // TODO: calcular baseado em datas de vencimento
+        totalReceitas,
+        totalDespesas,
+        lucroLiquido,
+        margemLucro,
+      },
     })
   } catch (error) {
     console.error("Erro ao buscar estatísticas financeiras:", error)

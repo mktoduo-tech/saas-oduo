@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
 
 // GET - Buscar equipamento por ID
 export async function GET(
@@ -23,6 +21,11 @@ export async function GET(
         id,
         tenantId: session.user.tenantId,
       },
+      include: {
+        rentalPeriods: {
+          orderBy: { days: "asc" },
+        },
+      },
     })
 
     if (!equipment) {
@@ -39,8 +42,6 @@ export async function GET(
       { error: "Erro ao buscar equipamento" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -58,41 +59,75 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { name, description, category, pricePerDay, pricePerHour, quantity, status, images } = body
+    const { name, description, category, pricePerDay, pricePerHour, quantity, status, images, rentalPeriods } = body
 
-    const equipment = await prisma.equipment.updateMany({
-      where: {
-        id,
-        tenantId: session.user.tenantId,
-      },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(category && { category }),
-        ...(pricePerDay && { pricePerDay: parseFloat(pricePerDay) }),
-        ...(pricePerHour !== undefined && { pricePerHour: pricePerHour ? parseFloat(pricePerHour) : null }),
-        ...(quantity !== undefined && { quantity }),
-        ...(status && { status }),
-        ...(images && { images }),
-      },
+    // Verificar se equipamento existe e pertence ao tenant
+    const existingEquipment = await prisma.equipment.findFirst({
+      where: { id, tenantId: session.user.tenantId },
     })
 
-    if (equipment.count === 0) {
+    if (!existingEquipment) {
       return NextResponse.json(
         { error: "Equipamento não encontrado" },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ success: true }, { status: 200 })
+    // Calcular pricePerDay a partir dos períodos se fornecidos
+    let calculatedPricePerDay = pricePerDay ? parseFloat(pricePerDay) : undefined
+    if (rentalPeriods?.length) {
+      const sortedPeriods = [...rentalPeriods].sort((a: { days: number }, b: { days: number }) => a.days - b.days)
+      calculatedPricePerDay = sortedPeriods[0].price / sortedPeriods[0].days
+    }
+
+    // Atualizar equipamento e períodos em uma transação
+    const equipment = await prisma.$transaction(async (tx) => {
+      // Se rentalPeriods foi fornecido, deletar os antigos e criar novos
+      if (rentalPeriods !== undefined) {
+        await tx.rentalPeriod.deleteMany({
+          where: { equipmentId: id },
+        })
+
+        if (rentalPeriods.length > 0) {
+          await tx.rentalPeriod.createMany({
+            data: rentalPeriods.map((period: { days: number; price: number; label?: string }) => ({
+              equipmentId: id,
+              days: period.days,
+              price: period.price,
+              label: period.label || null,
+            })),
+          })
+        }
+      }
+
+      // Atualizar equipamento
+      return tx.equipment.update({
+        where: { id },
+        data: {
+          ...(name && { name }),
+          ...(description !== undefined && { description }),
+          ...(category && { category }),
+          ...(calculatedPricePerDay !== undefined && { pricePerDay: calculatedPricePerDay }),
+          ...(pricePerHour !== undefined && { pricePerHour: pricePerHour ? parseFloat(pricePerHour) : null }),
+          ...(quantity !== undefined && { quantity }),
+          ...(status && { status }),
+          ...(images && { images }),
+        },
+        include: {
+          rentalPeriods: {
+            orderBy: { days: "asc" },
+          },
+        },
+      })
+    })
+
+    return NextResponse.json(equipment, { status: 200 })
   } catch (error) {
     console.error("Erro ao atualizar equipamento:", error)
     return NextResponse.json(
       { error: "Erro ao atualizar equipamento" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -131,7 +166,5 @@ export async function DELETE(
       { error: "Erro ao deletar equipamento" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

@@ -1,7 +1,7 @@
 "use client"
 
-import { Suspense, useState } from "react"
-import { signIn } from "next-auth/react"
+import { Suspense, useState, useEffect } from "react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -29,11 +29,44 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>
 
+/**
+ * Extrai o subdomínio (tenant slug) do hostname atual
+ */
+function getTenantSlug(): string | null {
+  if (typeof window === "undefined") return null
+
+  const hostname = window.location.hostname
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.split(":")[0] || ""
+
+  // Desenvolvimento local
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return null
+  }
+
+  // Domínio principal
+  if (hostname === rootDomain || hostname === `www.${rootDomain}`) {
+    return null
+  }
+
+  // Extrai subdomínio
+  const subdomain = hostname.replace(`.${rootDomain}`, "")
+  if (subdomain === hostname || subdomain === "www") {
+    return null
+  }
+
+  return subdomain
+}
+
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
   const [isLoading, setIsLoading] = useState(false)
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTenantSlug(getTenantSlug())
+  }, [])
 
   const {
     register,
@@ -50,18 +83,39 @@ function LoginForm() {
       const result = await signIn("credentials", {
         email: data.email,
         password: data.password,
+        tenantSlug: tenantSlug || undefined,
         redirect: false,
         callbackUrl: callbackUrl,
       })
 
       if (result?.error) {
-        toast.error("Email ou senha incorretos")
+        // Mensagem mais específica se estiver em subdomínio
+        if (tenantSlug) {
+          toast.error("Usuário não encontrado nesta empresa ou senha incorreta")
+        } else {
+          toast.error("Email ou senha incorretos")
+        }
         setIsLoading(false)
       } else {
-        router.push(callbackUrl)
-        router.refresh()
+        // Buscar sessão para verificar o role do usuário
+        const session = await getSession()
+
+        // Redirecionar super admin para painel de super admin
+        if (session?.user?.role === "SUPER_ADMIN") {
+          router.push("/super-admin")
+          router.refresh()
+        } else if (session?.user?.tenantSlug) {
+          // Redirecionar tenant para seu subdomínio
+          const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
+          const protocol = window.location.protocol
+          const tenantUrl = `${protocol}//${session.user.tenantSlug}.${rootDomain}/dashboard`
+          window.location.href = tenantUrl
+        } else {
+          router.push(callbackUrl)
+          router.refresh()
+        }
       }
-    } catch (error) {
+    } catch {
       toast.error("Erro ao fazer login. Tente novamente.")
       setIsLoading(false)
     }

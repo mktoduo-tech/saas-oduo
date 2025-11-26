@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
 
     const equipments = await prisma.equipment.findMany({
       where,
+      include: {
+        rentalPeriods: {
+          orderBy: { days: "asc" },
+        },
+      },
       orderBy: { createdAt: "desc" },
     })
 
@@ -46,21 +51,42 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description, category, pricePerDay, pricePerHour, quantity, images, purchasePrice, purchaseDate } = body
+    const { name, description, category, pricePerDay, pricePerHour, quantity, images, purchasePrice, purchaseDate, rentalPeriods } = body
 
-    if (!name || !category || !pricePerDay) {
+    // rentalPeriods é obrigatório e deve ter pelo menos um período
+    // pricePerDay agora é calculado a partir do primeiro período (fallback para compatibilidade)
+    if (!name || !category) {
       return NextResponse.json(
-        { error: "Campos obrigatórios: name, category, pricePerDay" },
+        { error: "Campos obrigatórios: name, category" },
         { status: 400 }
       )
     }
+
+    if (!rentalPeriods || rentalPeriods.length === 0) {
+      // Se não enviou rentalPeriods, exige pricePerDay (compatibilidade com API antiga)
+      if (!pricePerDay) {
+        return NextResponse.json(
+          { error: "Adicione pelo menos um período de locação" },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Calcular pricePerDay a partir do primeiro período (menor quantidade de dias)
+    // Isso mantém compatibilidade com o sistema existente
+    const sortedPeriods = rentalPeriods?.length
+      ? [...rentalPeriods].sort((a: { days: number }, b: { days: number }) => a.days - b.days)
+      : null
+    const calculatedPricePerDay = sortedPeriods
+      ? sortedPeriods[0].price / sortedPeriods[0].days
+      : parseFloat(pricePerDay)
 
     const equipment = await prisma.equipment.create({
       data: {
         name,
         description,
         category,
-        pricePerDay: parseFloat(pricePerDay),
+        pricePerDay: calculatedPricePerDay,
         pricePerHour: pricePerHour ? parseFloat(pricePerHour) : null,
         quantity: quantity || 1,
         images: images || [],
@@ -68,6 +94,19 @@ export async function POST(request: NextRequest) {
         purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
         tenantId: session.user.tenantId,
         status: "AVAILABLE",
+        // Criar períodos de locação se fornecidos
+        rentalPeriods: rentalPeriods?.length ? {
+          create: rentalPeriods.map((period: { days: number; price: number; label?: string }) => ({
+            days: period.days,
+            price: period.price,
+            label: period.label || null,
+          })),
+        } : undefined,
+      },
+      include: {
+        rentalPeriods: {
+          orderBy: { days: "asc" },
+        },
       },
     })
 

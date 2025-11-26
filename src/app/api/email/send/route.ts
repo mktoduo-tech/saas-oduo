@@ -58,6 +58,11 @@ export async function POST(request: NextRequest) {
       include: {
         customer: { select: { name: true, email: true } },
         equipment: { select: { name: true } },
+        items: {
+          include: {
+            equipment: { select: { name: true } },
+          },
+        },
       },
     })
 
@@ -68,6 +73,9 @@ export async function POST(request: NextRequest) {
     if (!booking.customer.email) {
       return NextResponse.json({ error: "Cliente não possui email cadastrado" }, { status: 400 })
     }
+
+    // Determinar equipamento principal
+    const equipmentName = booking.equipment?.name || booking.items[0]?.equipment?.name || "Equipamento"
 
     const formatDate = (date: Date) => {
       return new Date(date).toLocaleDateString("pt-BR", {
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
       case "confirmation":
         emailData = emailTemplates.bookingConfirmation({
           customerName: booking.customer.name,
-          equipmentName: booking.equipment.name,
+          equipmentName,
           startDate: formatDate(booking.startDate),
           endDate: formatDate(booking.endDate),
           totalPrice: booking.totalPrice,
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest) {
       case "reminder":
         emailData = emailTemplates.bookingReminder({
           customerName: booking.customer.name,
-          equipmentName: booking.equipment.name,
+          equipmentName,
           startDate: formatDate(booking.startDate),
           tenantName: tenant.name,
           tenantPhone: tenant.phone || undefined,
@@ -116,7 +124,7 @@ export async function POST(request: NextRequest) {
       case "receipt":
         emailData = emailTemplates.paymentReceipt({
           customerName: booking.customer.name,
-          equipmentName: booking.equipment.name,
+          equipmentName,
           bookingId: booking.id,
           amount: booking.totalPrice,
           paymentDate: formatDate(new Date()),
@@ -127,7 +135,7 @@ export async function POST(request: NextRequest) {
       case "cancelled":
         emailData = emailTemplates.bookingCancelled({
           customerName: booking.customer.name,
-          equipmentName: booking.equipment.name,
+          equipmentName,
           startDate: formatDate(booking.startDate),
           tenantName: tenant.name,
           tenantPhone: tenant.phone || undefined,

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -11,10 +12,11 @@ import {
     Package,
     Settings,
     HelpCircle,
-    LogOut,
     CreditCard,
     BarChart3,
-    FileCode
+    FileCode,
+    Warehouse,
+    FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -22,8 +24,45 @@ interface SidebarProps {
     className?: string
 }
 
+interface TenantModules {
+    nfseEnabled: boolean
+    stockEnabled: boolean
+    financialEnabled: boolean
+    reportsEnabled: boolean
+    apiEnabled: boolean
+    webhooksEnabled: boolean
+    multiUserEnabled: boolean
+    customDomainsEnabled: boolean
+}
+
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname()
+    const [modules, setModules] = useState<TenantModules>({
+        nfseEnabled: false,
+        stockEnabled: true,
+        financialEnabled: true,
+        reportsEnabled: true,
+        apiEnabled: false,
+        webhooksEnabled: false,
+        multiUserEnabled: true,
+        customDomainsEnabled: false,
+    })
+
+    // Verificar módulos habilitados
+    useEffect(() => {
+        async function fetchModules() {
+            try {
+                const response = await fetch("/api/tenant/modules")
+                if (response.ok) {
+                    const data = await response.json()
+                    setModules(data)
+                }
+            } catch {
+                // Silently fail - usa valores padrão
+            }
+        }
+        fetchModules()
+    }, [])
 
     const routes = [
         {
@@ -56,18 +95,34 @@ export function Sidebar({ className }: SidebarProps) {
             href: "/equipamentos",
             color: "text-amber-400",
         },
-        {
+        // Estoque - condicional
+        ...(modules.stockEnabled ? [{
+            label: "Estoque",
+            icon: Warehouse,
+            href: "/estoque",
+            color: "text-teal-400",
+        }] : []),
+        // Financeiro - condicional
+        ...(modules.financialEnabled ? [{
             label: "Financeiro",
             icon: CreditCard,
             href: "/financeiro",
             color: "text-pink-400",
-        },
-        {
+        }] : []),
+        // Notas Fiscais - condicional
+        ...(modules.nfseEnabled ? [{
+            label: "Notas Fiscais",
+            icon: FileText,
+            href: "/notas-fiscais",
+            color: "text-green-400",
+        }] : []),
+        // Relatórios - condicional
+        ...(modules.reportsEnabled ? [{
             label: "Relatórios",
             icon: BarChart3,
             href: "/relatorios",
             color: "text-cyan-400",
-        },
+        }] : []),
         {
             label: "Configurações",
             icon: Settings,
@@ -80,12 +135,13 @@ export function Sidebar({ className }: SidebarProps) {
             href: "/ajuda",
             color: "text-orange-400",
         },
-        {
+        // API Docs - condicional
+        ...(modules.apiEnabled ? [{
             label: "API Docs",
             icon: FileCode,
             href: "/api-docs",
             color: "text-violet-400",
-        },
+        }] : []),
     ]
 
     return (

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireSuperAdmin } from "@/lib/super-admin"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
+import { sendEmail, emailTemplates } from "@/lib/email"
 
 // GET - Listar todos os usuários do sistema
 export async function GET(request: NextRequest) {
@@ -143,29 +145,69 @@ export async function POST(request: NextRequest) {
     // Hash da senha
     const passwordHash = await bcrypt.hash(password, 10)
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role: role || "ADMIN",
-        tenantId: finalTenantId,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
+    // Criar usuário e token de verificação em transação
+    const verificationToken = crypto.randomBytes(32).toString("hex")
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 horas
+
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          role: role || "ADMIN",
+          tenantId: finalTenantId,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
         },
-      },
+      })
+
+      // Criar token de verificação
+      await tx.verificationToken.create({
+        data: {
+          token: verificationToken,
+          type: "EMAIL_VERIFICATION",
+          userId: newUser.id,
+          expiresAt,
+        },
+      })
+
+      return newUser
     })
+
+    // Enviar email de verificação
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http"
+    const verificationUrl = `${protocol}://${rootDomain}/api/auth/verify-email?token=${verificationToken}`
+
+    try {
+      const emailContent = emailTemplates.emailVerification({
+        userName: user.name,
+        verificationUrl,
+        expiresIn: "24 horas",
+      })
+
+      await sendEmail({
+        to: user.email,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      })
+    } catch (emailError) {
+      console.error("Erro ao enviar email de verificação:", emailError)
+      // Não falha a criação do usuário se o email não for enviado
+    }
 
     return NextResponse.json(user, { status: 201 })
   } catch (error) {

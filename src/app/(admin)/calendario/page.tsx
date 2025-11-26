@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
@@ -8,12 +8,12 @@ import timeGridPlugin from "@fullcalendar/timegrid"
 import interactionPlugin from "@fullcalendar/interaction"
 import listPlugin from "@fullcalendar/list"
 import { EventClickArg, DateSelectArg, EventDropArg } from "@fullcalendar/core"
+import type { EventResizeDoneArg } from "@fullcalendar/interaction"
 import ptBrLocale from "@fullcalendar/core/locales/pt-br"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -45,10 +45,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import {
-  Calendar,
   Plus,
   Filter,
-  X,
   Phone,
   Package,
   User,
@@ -116,7 +114,10 @@ export default function CalendarioPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
+  const [eventsLoading, setEventsLoading] = useState(false)
   const [selectedEquipment, setSelectedEquipment] = useState<string>("all")
+  const [currentDateRange, setCurrentDateRange] = useState<{ start: string; end: string } | null>(null)
+  const isInitialMount = useRef(true)
 
   // Modal de detalhes da reserva
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
@@ -133,42 +134,46 @@ export default function CalendarioPage() {
   })
   const [creating, setCreating] = useState(false)
 
+  // Carregamento inicial - busca equipamentos e clientes em paralelo
   useEffect(() => {
-    fetchEquipments()
-    fetchCustomers()
+    const loadInitialData = async () => {
+      try {
+        const [equipmentsRes, customersRes] = await Promise.all([
+          fetch("/api/equipments"),
+          fetch("/api/customers")
+        ])
+
+        if (equipmentsRes.ok) {
+          const data = await equipmentsRes.json()
+          setEquipments(Array.isArray(data) ? data : [])
+        }
+        if (customersRes.ok) {
+          const data = await customersRes.json()
+          setCustomers(Array.isArray(data) ? data : [])
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados iniciais:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadInitialData()
   }, [])
 
+  // Busca eventos quando o filtro de equipamento muda (após load inicial)
   useEffect(() => {
-    fetchEvents()
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+    if (currentDateRange) {
+      fetchEvents(currentDateRange.start, currentDateRange.end)
+    }
   }, [selectedEquipment])
 
-  const fetchEquipments = async () => {
+  const fetchEvents = useCallback(async (start?: string, end?: string) => {
     try {
-      const response = await fetch("/api/equipments")
-      if (response.ok) {
-        const data = await response.json()
-        setEquipments(Array.isArray(data) ? data : [])
-      }
-    } catch (error) {
-      console.error("Erro ao buscar equipamentos:", error)
-    }
-  }
-
-  const fetchCustomers = async () => {
-    try {
-      const response = await fetch("/api/customers")
-      if (response.ok) {
-        const data = await response.json()
-        setCustomers(Array.isArray(data) ? data : [])
-      }
-    } catch (error) {
-      console.error("Erro ao buscar clientes:", error)
-    }
-  }
-
-  const fetchEvents = async (start?: string, end?: string) => {
-    try {
-      setLoading(true)
+      setEventsLoading(true)
       const params = new URLSearchParams()
 
       if (start) params.set("start", start)
@@ -184,13 +189,16 @@ export default function CalendarioPage() {
       console.error("Erro ao buscar eventos:", error)
       toast.error("Erro ao carregar calendário")
     } finally {
-      setLoading(false)
+      setEventsLoading(false)
     }
-  }
+  }, [selectedEquipment])
 
-  const handleDatesSet = (arg: { start: Date; end: Date }) => {
-    fetchEvents(arg.start.toISOString(), arg.end.toISOString())
-  }
+  const handleDatesSet = useCallback((arg: { start: Date; end: Date }) => {
+    const start = arg.start.toISOString()
+    const end = arg.end.toISOString()
+    setCurrentDateRange({ start, end })
+    fetchEvents(start, end)
+  }, [fetchEvents])
 
   const handleEventClick = (arg: EventClickArg) => {
     setSelectedEvent(arg.event.toPlainObject() as unknown as CalendarEvent)
@@ -232,14 +240,14 @@ export default function CalendarioPage() {
       }
 
       toast.success("Reserva atualizada com sucesso!")
-      fetchEvents()
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao mover reserva")
+      if (currentDateRange) fetchEvents(currentDateRange.start, currentDateRange.end)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao mover reserva")
       arg.revert()
     }
   }
 
-  const handleEventResize = async (arg: any) => {
+  const handleEventResize = async (arg: EventResizeDoneArg) => {
     const { event } = arg
     const bookingId = event.extendedProps.bookingId
 
@@ -260,9 +268,9 @@ export default function CalendarioPage() {
       }
 
       toast.success("Reserva atualizada com sucesso!")
-      fetchEvents()
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao redimensionar reserva")
+      if (currentDateRange) fetchEvents(currentDateRange.start, currentDateRange.end)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao redimensionar reserva")
       arg.revert()
     }
   }
@@ -295,9 +303,9 @@ export default function CalendarioPage() {
 
       toast.success("Reserva criada com sucesso!")
       setNewBookingOpen(false)
-      fetchEvents()
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao criar reserva")
+      if (currentDateRange) fetchEvents(currentDateRange.start, currentDateRange.end)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao criar reserva")
     } finally {
       setCreating(false)
     }
@@ -406,12 +414,20 @@ export default function CalendarioPage() {
       {/* Calendário */}
       <Card className="overflow-hidden">
         <CardContent className="p-2 sm:p-6">
-          {loading && events.length === 0 ? (
+          {loading ? (
             <div className="flex items-center justify-center h-96">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="calendar-container">
+            <div className="calendar-container relative">
+              {eventsLoading && (
+                <div className="absolute top-2 right-2 z-10">
+                  <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-full border shadow-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-xs text-muted-foreground">Carregando...</span>
+                  </div>
+                </div>
+              )}
               <FullCalendar
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
@@ -437,6 +453,8 @@ export default function CalendarioPage() {
                 eventDisplay="block"
                 displayEventTime={false}
                 eventClassNames="cursor-pointer rounded-md px-2 py-1 text-xs font-medium shadow-sm"
+                lazyFetching={true}
+                loading={(isLoading) => setEventsLoading(isLoading)}
               />
             </div>
           )}

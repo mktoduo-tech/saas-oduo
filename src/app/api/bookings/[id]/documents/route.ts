@@ -68,11 +68,22 @@ export async function POST(
         customer: true,
         equipment: true,
         tenant: true,
+        items: {
+          include: {
+            equipment: true,
+          },
+        },
       },
     })
 
     if (!booking) {
       return NextResponse.json({ error: "Reserva não encontrada" }, { status: 404 })
+    }
+
+    // Determinar equipamento principal (legado ou primeiro item)
+    const mainEquipment = booking.equipment || booking.items[0]?.equipment
+    if (!mainEquipment) {
+      return NextResponse.json({ error: "Reserva sem equipamento associado" }, { status: 400 })
     }
 
     const formatDate = (date: Date) => {
@@ -101,12 +112,12 @@ export async function POST(
         customerPhone: booking.customer.phone || undefined,
         customerEmail: booking.customer.email || undefined,
         customerAddress: booking.customer.address || undefined,
-        equipmentName: booking.equipment.name,
-        equipmentDescription: booking.equipment.description || undefined,
+        equipmentName: mainEquipment.name,
+        equipmentDescription: mainEquipment.description || undefined,
         startDate: formatDate(booking.startDate),
         endDate: formatDate(booking.endDate),
         totalPrice: booking.totalPrice,
-        pricePerDay: booking.equipment.pricePerDay,
+        pricePerDay: mainEquipment.pricePerDay,
         totalDays,
         bookingId: booking.id,
         createdAt: formatDate(new Date()),
@@ -118,7 +129,7 @@ export async function POST(
         tenantPhone: booking.tenant.phone || undefined,
         customerName: booking.customer.name,
         customerDocument: booking.customer.cpfCnpj || undefined,
-        equipmentName: booking.equipment.name,
+        equipmentName: mainEquipment.name,
         startDate: formatDate(booking.startDate),
         endDate: formatDate(booking.endDate),
         totalPrice: booking.totalPrice,

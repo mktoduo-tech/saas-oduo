@@ -34,7 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Trash2, Calendar, User, Package, MoreHorizontal, Mail, FileText, Receipt, Send } from "lucide-react"
+import { Plus, Edit, Trash2, Calendar, User, Package, MoreHorizontal, Mail, FileText, Receipt, Send, Download } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +46,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { downloadDocumentAsPDF } from "@/lib/pdf-generator"
 
 interface Booking {
   id: string
@@ -189,6 +190,17 @@ export default function ReservasPage() {
     } catch (error) {
       console.error("Error generating document:", error)
       toast.error("Erro ao gerar documento")
+    }
+  }
+
+  const handleDownloadPDF = async (bookingId: string, type: "CONTRACT" | "RECEIPT") => {
+    try {
+      toast.info("Gerando PDF...")
+      await downloadDocumentAsPDF(bookingId, type)
+      toast.success("PDF baixado com sucesso!")
+    } catch (error) {
+      console.error("Error downloading PDF:", error)
+      toast.error(error instanceof Error ? error.message : "Erro ao baixar PDF")
     }
   }
 
@@ -363,13 +375,25 @@ export default function ReservasPage() {
                                 onClick={() => handleGenerateDocument(booking.id, "CONTRACT")}
                               >
                                 <FileText className="h-4 w-4 mr-2" />
-                                Gerar Contrato
+                                Visualizar Contrato
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDownloadPDF(booking.id, "CONTRACT")}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Baixar Contrato (PDF)
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleGenerateDocument(booking.id, "RECEIPT")}
                               >
                                 <Receipt className="h-4 w-4 mr-2" />
-                                Gerar Recibo
+                                Visualizar Recibo
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDownloadPDF(booking.id, "RECEIPT")}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Baixar Recibo (PDF)
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem

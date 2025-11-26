@@ -26,14 +26,40 @@ export async function GET(
             role: true,
             createdAt: true,
           },
+          orderBy: { createdAt: "desc" },
+        },
+        equipments: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            pricePerDay: true,
+            status: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        },
+        bookings: {
+          select: {
+            id: true,
+            bookingNumber: true,
+            status: true,
+            totalPrice: true,
+            startDate: true,
+            endDate: true,
+            customer: {
+              select: { name: true },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 10,
         },
         _count: {
           select: {
+            users: true,
             equipments: true,
             bookings: true,
             customers: true,
-            apiKeys: true,
-            webhooks: true,
           },
         },
       },
@@ -46,43 +72,18 @@ export async function GET(
       )
     }
 
-    // Buscar estatísticas adicionais
-    const [revenue, recentBookings, equipmentStats] = await Promise.all([
-      prisma.booking.aggregate({
-        _sum: { totalPrice: true },
-        _count: { id: true },
-        where: {
-          tenantId: id,
-          status: { in: ["CONFIRMED", "COMPLETED"] },
-        },
-      }),
-      prisma.booking.findMany({
-        where: { tenantId: id },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        include: {
-          customer: { select: { name: true } },
-          equipment: { select: { name: true } },
-        },
-      }),
-      prisma.equipment.groupBy({
-        by: ["status"],
-        where: { tenantId: id },
-        _count: { id: true },
-      }),
-    ])
+    // Buscar receita total
+    const revenue = await prisma.booking.aggregate({
+      _sum: { totalPrice: true },
+      where: {
+        tenantId: id,
+        status: { in: ["CONFIRMED", "COMPLETED"] },
+      },
+    })
 
     return NextResponse.json({
       ...tenant,
-      stats: {
-        totalRevenue: revenue._sum.totalPrice || 0,
-        totalBookings: revenue._count.id,
-        equipmentByStatus: equipmentStats.reduce((acc, item) => {
-          acc[item.status] = item._count.id
-          return acc
-        }, {} as Record<string, number>),
-      },
-      recentBookings,
+      totalRevenue: revenue._sum.totalPrice || 0,
     })
   } catch (error) {
     console.error("Erro ao buscar tenant:", error)

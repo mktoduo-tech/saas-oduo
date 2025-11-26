@@ -298,7 +298,7 @@ function CadastroContent() {
                       <p className="text-xs text-red-400">{errors.tenantSlug.message}</p>
                     )}
                     <p className="text-xs text-gray-500 break-all pl-1">
-                      {watch("tenantSlug") || "seu-slug"}.oduo.com.br
+                      {watch("tenantSlug") || "seu-slug"}.oduoloc.com.br
                     </p>
                   </div>
                   <div className="space-y-2">

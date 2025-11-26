@@ -16,6 +16,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -33,6 +34,7 @@ import { toast } from "sonner"
 
 interface Transaction {
   id: string
+  bookingId?: string
   type: "income" | "expense"
   category: string
   description: string
@@ -71,6 +73,12 @@ export default function FinanceiroPage() {
   const [createDialog, setCreateDialog] = useState(false)
   const [transactionType, setTransactionType] = useState("")
 
+  // Estado para dialog de recebimento
+  const [paymentDialog, setPaymentDialog] = useState(false)
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState("")
+  const [processingPayment, setProcessingPayment] = useState(false)
+
   useEffect(() => {
     fetchFinancialData()
   }, [])
@@ -92,6 +100,46 @@ export default function FinanceiroPage() {
   const handleCreateTransaction = () => {
     toast.success("Funcionalidade em desenvolvimento")
     setCreateDialog(false)
+  }
+
+  const openPaymentDialog = (transaction: Transaction) => {
+    setSelectedTransaction(transaction)
+    setPaymentMethod("")
+    setPaymentDialog(true)
+  }
+
+  const handleReceivePayment = async () => {
+    if (!selectedTransaction?.bookingId) {
+      toast.error("Transação inválida")
+      return
+    }
+
+    setProcessingPayment(true)
+    try {
+      const response = await fetch(`/api/bookings/${selectedTransaction.bookingId}/payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentMethod }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao registrar pagamento")
+      }
+
+      toast.success(data.message || "Pagamento registrado com sucesso!")
+      setPaymentDialog(false)
+      setSelectedTransaction(null)
+
+      // Recarregar dados
+      fetchFinancialData()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro ao registrar pagamento"
+      toast.error(errorMessage)
+    } finally {
+      setProcessingPayment(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -428,7 +476,7 @@ export default function FinanceiroPage() {
                         </div>
                         <Button
                           size="sm"
-                          onClick={() => toast.success("Funcionalidade em desenvolvimento")}
+                          onClick={() => openPaymentDialog(transaction)}
                           className="text-xs sm:text-sm"
                         >
                           <CheckCircle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -661,6 +709,86 @@ export default function FinanceiroPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de Recebimento de Pagamento */}
+      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar Pagamento</DialogTitle>
+            <DialogDescription>
+              Confirme o recebimento do pagamento
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedTransaction && (
+            <div className="space-y-4 py-4">
+              {/* Informações da transação */}
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="font-medium">{selectedTransaction.description}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Valor:</span>
+                  <span className="text-lg font-bold text-green-600">
+                    R$ {selectedTransaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {selectedTransaction.dueDate && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Vencimento:</span>
+                    <span className="text-sm">
+                      {new Date(selectedTransaction.dueDate).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Método de pagamento */}
+              <div className="space-y-2">
+                <Label>Método de Pagamento</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o método (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PIX">PIX</SelectItem>
+                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                    <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
+                    <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>
+                    <SelectItem value="Boleto">Boleto</SelectItem>
+                    <SelectItem value="Transferência">Transferência Bancária</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPaymentDialog(false)}
+              disabled={processingPayment}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleReceivePayment}
+              disabled={processingPayment}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {processingPayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Confirmar Recebimento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

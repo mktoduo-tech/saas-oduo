@@ -32,6 +32,7 @@ export async function GET() {
         include: {
           customer: { select: { name: true } },
           equipment: { select: { name: true } },
+          items: { include: { equipment: { select: { name: true } } } },
         },
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -55,6 +56,7 @@ export async function GET() {
         include: {
           customer: { select: { name: true } },
           equipment: { select: { name: true } },
+          items: { include: { equipment: { select: { name: true } } } },
         },
         take: 5,
       }),
@@ -91,11 +93,12 @@ export async function GET() {
     // Notificações de novas reservas
     recentBookings.forEach((booking) => {
       const timeAgo = getTimeAgo(booking.createdAt)
+      const equipmentName = booking.equipment?.name || booking.items[0]?.equipment?.name || "Equipamento"
       notifications.push({
         id: `booking-${booking.id}`,
         type: "info",
         title: "Nova reserva",
-        message: `${booking.customer.name} fez uma reserva de ${booking.equipment.name}`,
+        message: `${booking.customer.name} fez uma reserva de ${equipmentName}`,
         time: timeAgo,
         link: `/reservas/${booking.id}`,
       })
@@ -115,11 +118,12 @@ export async function GET() {
 
     // Notificações de reservas próximas
     upcomingBookings.forEach((booking) => {
+      const equipmentName = booking.equipment?.name || booking.items[0]?.equipment?.name || "Equipamento"
       notifications.push({
         id: `upcoming-${booking.id}`,
         type: "info",
         title: "Reserva amanhã",
-        message: `${booking.equipment.name} para ${booking.customer.name} começa em breve`,
+        message: `${equipmentName} para ${booking.customer.name} começa em breve`,
         time: "Próximas 24h",
         link: `/reservas/${booking.id}`,
       })

@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
-import { Bell, Search, Menu, LogOut, User, Settings, CreditCard, Loader2 } from "lucide-react"
+import { Bell, Search, Menu, LogOut, User, Settings, CreditCard, Loader2, Warehouse } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { StockAlertBadge } from "@/components/stock"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -109,6 +110,9 @@ export function Header({ user, onMenuClick }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-4">
+                {/* Stock Alerts */}
+                <StockAlertBadge />
+
                 {/* Notifications */}
                 <Sheet open={notificationsOpen} onOpenChange={setNotificationsOpen}>
                     <SheetTrigger asChild>

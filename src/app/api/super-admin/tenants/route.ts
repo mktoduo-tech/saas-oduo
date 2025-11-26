@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireSuperAdmin } from "@/lib/super-admin"
+import bcrypt from "bcryptjs"
+import crypto from "crypto"
+import { sendEmail, emailTemplates } from "@/lib/email"
 
 // GET - Listar todos os tenants
 export async function GET(request: NextRequest) {
@@ -106,13 +109,42 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { name, slug, email, phone, address } = body
+    const { name, slug, email, phone, address, adminName, adminEmail, adminPassword } = body
 
     if (!name || !slug || !email || !phone) {
       return NextResponse.json(
         { error: "Nome, slug, email e telefone são obrigatórios" },
         { status: 400 }
       )
+    }
+
+    // Validar dados do admin se fornecidos
+    if (adminEmail || adminPassword || adminName) {
+      if (!adminName || !adminEmail || !adminPassword) {
+        return NextResponse.json(
+          { error: "Para criar um admin, nome, email e senha são obrigatórios" },
+          { status: 400 }
+        )
+      }
+
+      if (adminPassword.length < 6) {
+        return NextResponse.json(
+          { error: "A senha do admin deve ter pelo menos 6 caracteres" },
+          { status: 400 }
+        )
+      }
+
+      // Verificar se email do admin já existe
+      const existingUser = await prisma.user.findUnique({
+        where: { email: adminEmail },
+      })
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Este email de admin já está em uso" },
+          { status: 409 }
+        )
+      }
     }
 
     // Verificar se slug já existe
@@ -127,18 +159,89 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const tenant = await prisma.tenant.create({
-      data: {
-        name,
-        slug,
-        email,
-        phone,
-        address,
-        active: true,
-      },
+    // Criar tenant e usuário admin em uma transação
+    let verificationToken: string | null = null
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Criar tenant
+      const tenant = await tx.tenant.create({
+        data: {
+          name,
+          slug,
+          email,
+          phone,
+          address,
+          active: true,
+        },
+      })
+
+      let admin = null
+
+      // Criar usuário admin se dados fornecidos
+      if (adminName && adminEmail && adminPassword) {
+        const passwordHash = await bcrypt.hash(adminPassword, 10)
+
+        admin = await tx.user.create({
+          data: {
+            name: adminName,
+            email: adminEmail,
+            passwordHash,
+            role: "ADMIN",
+            tenantId: tenant.id,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        })
+
+        // Criar token de verificação de email
+        verificationToken = crypto.randomBytes(32).toString("hex")
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 horas
+
+        await tx.verificationToken.create({
+          data: {
+            token: verificationToken,
+            type: "EMAIL_VERIFICATION",
+            userId: admin.id,
+            expiresAt,
+          },
+        })
+      }
+
+      return { tenant, admin }
     })
 
-    return NextResponse.json(tenant, { status: 201 })
+    // Enviar email de verificação se admin foi criado
+    if (result.admin && verificationToken) {
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
+      const protocol = process.env.NODE_ENV === "production" ? "https" : "http"
+      const verificationUrl = `${protocol}://${rootDomain}/api/auth/verify-email?token=${verificationToken}`
+
+      try {
+        const emailContent = emailTemplates.emailVerification({
+          userName: result.admin.name,
+          verificationUrl,
+          expiresIn: "24 horas",
+        })
+
+        await sendEmail({
+          to: result.admin.email,
+          subject: emailContent.subject,
+          html: emailContent.html,
+        })
+      } catch (emailError) {
+        console.error("Erro ao enviar email de verificação:", emailError)
+        // Não falha a criação se o email não for enviado
+      }
+    }
+
+    return NextResponse.json({
+      ...result.tenant,
+      admin: result.admin,
+    }, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar tenant:", error)
     return NextResponse.json(

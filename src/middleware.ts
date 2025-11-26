@@ -1,13 +1,62 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// Domínio raiz configurado (sem www)
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
+
+/**
+ * Extrai o subdomínio (tenant slug) do hostname
+ * Exemplos:
+ * - locadora-xyz.oduoloc.com.br → "locadora-xyz"
+ * - www.oduoloc.com.br → null (domínio principal)
+ * - oduoloc.com.br → null (domínio principal)
+ * - localhost:3000 → null (desenvolvimento)
+ */
+function getSubdomain(host: string): string | null {
+    // Remove porta se houver
+    const hostname = host.split(":")[0]
+
+    // Desenvolvimento local - sem subdomínio
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return null
+    }
+
+    // Extrai domínio raiz sem porta
+    const rootDomain = ROOT_DOMAIN.split(":")[0]
+
+    // Se o hostname é igual ao domínio raiz, não há subdomínio
+    if (hostname === rootDomain || hostname === `www.${rootDomain}`) {
+        return null
+    }
+
+    // Extrai o subdomínio
+    const subdomain = hostname.replace(`.${rootDomain}`, "")
+
+    // Se ainda tem o hostname original, não é um subdomínio válido
+    if (subdomain === hostname) {
+        return null
+    }
+
+    // Ignora 'www' como subdomínio
+    if (subdomain === "www") {
+        return null
+    }
+
+    return subdomain
+}
+
 export function middleware(req: NextRequest) {
+    const host = req.headers.get("host") || ""
+    const subdomain = getSubdomain(host)
+    const pathname = req.nextUrl.pathname
+
     // Verifica se o usuário está logado através do token de sessão
     const token = req.cookies.get("authjs.session-token") || req.cookies.get("__Secure-authjs.session-token")
     const isLoggedIn = !!token
 
     // Rotas protegidas que requerem autenticação
     const protectedRoutes = [
+        "/super-admin",
         "/dashboard",
         "/equipamentos",
         "/clientes",
@@ -19,10 +68,11 @@ export function middleware(req: NextRequest) {
         "/marketing",
         "/logs",
         "/ajuda",
-        "/relatorios"
+        "/relatorios",
+        "/calendario"
     ]
 
-    const isOnProtectedRoute = protectedRoutes.some(route => req.nextUrl.pathname.startsWith(route))
+    const isOnProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
 
     // Se está em rota protegida e não está logado, redireciona para login
     if (isOnProtectedRoute && !isLoggedIn) {
@@ -30,11 +80,19 @@ export function middleware(req: NextRequest) {
     }
 
     // Se está logado e tenta acessar login ou cadastro, redireciona para dashboard
-    if (isLoggedIn && (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/cadastro")) {
+    if (isLoggedIn && (pathname === "/login" || pathname === "/cadastro")) {
         return NextResponse.redirect(new URL("/dashboard", req.nextUrl))
     }
 
-    return NextResponse.next()
+    // Adiciona o tenant slug (do subdomínio) nos headers para uso nas APIs e páginas
+    const response = NextResponse.next()
+
+    if (subdomain) {
+        // Passa o slug do tenant para as páginas/APIs via header
+        response.headers.set("x-tenant-slug", subdomain)
+    }
+
+    return response
 }
 
 export const config = {

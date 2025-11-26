@@ -59,6 +59,13 @@ export async function GET(request: NextRequest) {
         customer: {
           select: { id: true, name: true, phone: true },
         },
+        items: {
+          include: {
+            equipment: {
+              select: { id: true, name: true, category: true },
+            },
+          },
+        },
       },
       orderBy: { startDate: "asc" },
     })
@@ -72,9 +79,15 @@ export async function GET(request: NextRequest) {
         COMPLETED: "#10b981",  // emerald
       }
 
+      // Determinar equipamento principal (legado ou primeiro item)
+      const mainEquipment = booking.equipment || booking.items[0]?.equipment
+      const equipmentName = mainEquipment?.name || "Sem equipamento"
+      const equipmentId = mainEquipment?.id || ""
+      const equipmentCategory = mainEquipment?.category || ""
+
       return {
         id: booking.id,
-        title: `${booking.equipment.name} - ${booking.customer.name}`,
+        title: `${equipmentName} - ${booking.customer.name}`,
         start: booking.startDate,
         end: booking.endDate,
         allDay: true,
@@ -82,15 +95,16 @@ export async function GET(request: NextRequest) {
         borderColor: statusColors[booking.status] || "#6b7280",
         extendedProps: {
           bookingId: booking.id,
-          equipmentId: booking.equipment.id,
-          equipmentName: booking.equipment.name,
-          equipmentCategory: booking.equipment.category,
+          equipmentId,
+          equipmentName,
+          equipmentCategory,
           customerId: booking.customer.id,
           customerName: booking.customer.name,
           customerPhone: booking.customer.phone,
           status: booking.status,
           totalPrice: booking.totalPrice,
           notes: booking.notes,
+          itemsCount: booking.items.length,
         },
       }
     })

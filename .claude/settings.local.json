@@ -5,7 +5,13 @@
       "Bash(vercel:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(set \"DATABASE_URL=postgres://e7de62df5ba694619c6a580ce2e4bfe91cb7a2524a70162b3ed64930feec201b:sk_0N3b5968pbG2JQ0alTn-m@db.prisma.io:5432/postgres?sslmode=require\")",
+      "Bash(npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgres://e7de62df5ba694619c6a580ce2e4bfe91cb7a2524a70162b3ed64930feec201b:sk_0N3b5968pbG2JQ0alTn-m@db.prisma.io:5432/postgres?sslmode=require\" npx prisma db push:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx prisma generate:*)"
     ],
     "deny": [],
     "ask": []

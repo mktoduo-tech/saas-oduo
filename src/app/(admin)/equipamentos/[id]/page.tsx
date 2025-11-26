@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ImageUpload } from "@/components/ui/image-upload"
+import { RentalPeriodInput, type RentalPeriod } from "@/components/equipment"
 import { toast } from "sonner"
 
 const equipmentSchema = z.object({
@@ -35,7 +36,6 @@ const equipmentSchema = z.object({
   category: z.string().min(2, "Categoria é obrigatória"),
   images: z.array(z.string()),
   pricePerHour: z.string().optional(),
-  pricePerDay: z.string().min(1, "Preço por dia é obrigatório"),
   quantity: z.string().min(1, "Quantidade é obrigatória"),
   status: z.enum(["AVAILABLE", "RENTED", "MAINTENANCE", "INACTIVE"]),
 })
@@ -51,6 +51,7 @@ export default function EditarEquipamentoPage({
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [rentalPeriods, setRentalPeriods] = useState<RentalPeriod[]>([])
 
   const {
     register,
@@ -89,9 +90,20 @@ export default function EditarEquipamentoPage({
         "pricePerHour",
         equipment.pricePerHour ? String(equipment.pricePerHour) : ""
       )
-      setValue("pricePerDay", String(equipment.pricePerDay))
       setValue("quantity", String(equipment.quantity))
       setValue("status", equipment.status)
+
+      // Carregar períodos de locação
+      if (equipment.rentalPeriods?.length) {
+        setRentalPeriods(equipment.rentalPeriods)
+      } else if (equipment.pricePerDay) {
+        // Compatibilidade: criar período padrão se não tiver períodos
+        setRentalPeriods([{
+          days: 1,
+          price: equipment.pricePerDay,
+          label: "Diária",
+        }])
+      }
     } catch (error: any) {
       toast.error(error.message || "Erro ao carregar equipamento")
       router.push("/equipamentos")
@@ -101,6 +113,12 @@ export default function EditarEquipamentoPage({
   }
 
   const onSubmit = async (data: EquipmentFormData) => {
+    // Validar períodos de locação
+    if (rentalPeriods.length === 0) {
+      toast.error("Adicione pelo menos um período de locação")
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -111,9 +129,13 @@ export default function EditarEquipamentoPage({
         category: data.category,
         images: data.images,
         pricePerHour: data.pricePerHour ? parseFloat(data.pricePerHour) : null,
-        pricePerDay: parseFloat(data.pricePerDay),
         quantity: parseInt(data.quantity),
         status: data.status,
+        rentalPeriods: rentalPeriods.map(p => ({
+          days: p.days,
+          price: p.price,
+          label: p.label,
+        })),
       }
 
       const response = await fetch(`/api/equipments/${resolvedParams.id}`, {
@@ -249,41 +271,28 @@ export default function EditarEquipamentoPage({
               )}
             </div>
 
-            {/* Preços */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="pricePerDay">Preço por Dia (R$) *</Label>
-                <Input
-                  id="pricePerDay"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  disabled={isLoading}
-                  {...register("pricePerDay")}
-                />
-                {errors.pricePerDay && (
-                  <p className="text-sm text-red-500">
-                    {errors.pricePerDay.message}
-                  </p>
-                )}
-              </div>
+            {/* Períodos de Locação */}
+            <RentalPeriodInput
+              value={rentalPeriods}
+              onChange={setRentalPeriods}
+              disabled={isLoading}
+            />
 
-              <div className="space-y-2">
-                <Label htmlFor="pricePerHour">Preço por Hora (R$)</Label>
-                <Input
-                  id="pricePerHour"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00 (opcional)"
-                  disabled={isLoading}
-                  {...register("pricePerHour")}
-                />
-                {errors.pricePerHour && (
-                  <p className="text-sm text-red-500">
-                    {errors.pricePerHour.message}
-                  </p>
-                )}
-              </div>
+            {/* Preço por Hora (opcional) */}
+            <div className="space-y-2">
+              <Label htmlFor="pricePerHour">Preço por Hora (R$) - Opcional</Label>
+              <Input
+                id="pricePerHour"
+                type="number"
+                step="0.01"
+                placeholder="0.00 (para locações por hora)"
+                disabled={isLoading}
+                className="max-w-xs"
+                {...register("pricePerHour")}
+              />
+              <p className="text-xs text-muted-foreground">
+                Preencha apenas se oferecer locação por hora
+              </p>
             </div>
 
             {/* Quantidade e Status */}

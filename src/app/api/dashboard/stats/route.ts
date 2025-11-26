@@ -42,6 +42,11 @@ export async function GET(request: NextRequest) {
         include: {
           customer: true,
           equipment: true,
+          items: {
+            include: {
+              equipment: { select: { name: true } },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -149,7 +154,7 @@ export async function GET(request: NextRequest) {
             name: booking.customer.name,
           },
           equipment: {
-            name: booking.equipment.name,
+            name: booking.equipment?.name || booking.items[0]?.equipment?.name || "Equipamento",
           },
         })),
       },
