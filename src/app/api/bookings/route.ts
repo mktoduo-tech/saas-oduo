@@ -214,9 +214,9 @@ export async function POST(request: NextRequest) {
           },
         },
         _sum: { quantity: true },
-      })
+      }) as { _sum: { quantity: number | null } }
 
-      const totalReservedInPeriod = conflictingLegacy + (conflictingItems._sum.quantity || 0)
+      const totalReservedInPeriod = conflictingLegacy + (conflictingItems._sum?.quantity || 0)
       const availableForPeriod = equipment.totalStock - equipment.maintenanceStock - equipment.damagedStock - totalReservedInPeriod
 
       if (availableForPeriod < item.quantity) {
