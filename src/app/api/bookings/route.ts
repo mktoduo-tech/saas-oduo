@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { bookingItemSchema } from "@/lib/validations/stock"
 import { calculateRentalPrice } from "@/lib/pricing"
+import { checkBookingLimit } from "@/lib/plan-limits"
 import { z } from "zod"
 
 // GET - Listar reservas
@@ -59,12 +60,14 @@ const createBookingSchema = z.object({
   endDate: z.string().min(1, "Data de fim é obrigatória"),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
   // Suporte legado (único equipamento)
   equipmentId: z.string().optional(),
   totalPrice: z.number().optional(),
   // Novo sistema multi-item
   items: z.array(bookingItemSchema).optional(),
+  // Status é ignorado (sempre cria como PENDING), mas aceito para compatibilidade com frontend
+  status: z.string().optional(),
 })
 
 // POST - Criar reserva
@@ -74,6 +77,24 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user?.tenantId || !session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    // Verificar limite de reservas do plano
+    const limitCheck = await checkBookingLimit(session.user.tenantId)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "PLAN_LIMIT_EXCEEDED",
+          message: limitCheck.message,
+          details: {
+            limitType: "bookings",
+            current: limitCheck.current,
+            max: limitCheck.max,
+            upgradeUrl: "/renovar"
+          }
+        },
+        { status: 403 }
+      )
     }
 
     const body = await request.json()

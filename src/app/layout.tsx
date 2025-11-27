@@ -24,7 +24,7 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-    title: "SaaS Oduo - Gestão de Locação Reinventada",
+    title: "ODuoLoc - Gestão de Locação Reinventada",
     description: "Plataforma completa para gerenciar suas reservas, equipamentos e clientes",
 };
 

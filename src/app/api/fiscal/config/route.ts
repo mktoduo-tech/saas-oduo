@@ -79,7 +79,7 @@ export async function GET() {
   } catch (error) {
     console.error('Erro ao buscar configuração fiscal:', error)
     return NextResponse.json(
-      { error: 'Erro ao buscar configuração fiscal' },
+      { error: 'Erro ao buscar configuração fiscal', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }
@@ -205,7 +205,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Erro ao atualizar configuração fiscal:', error)
     return NextResponse.json(
-      { error: 'Erro ao atualizar configuração fiscal' },
+      { error: 'Erro ao atualizar configuração fiscal', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     )
   }

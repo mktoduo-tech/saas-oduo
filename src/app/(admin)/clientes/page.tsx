@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Edit, Trash2, Mail, Phone } from "lucide-react"
+import { DataPagination } from "@/components/ui/data-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,15 @@ export default function ClientesPage() {
   const [search, setSearch] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Calcular itens paginados
+  const totalItems = customers.length
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedCustomers = customers.slice(startIndex, startIndex + itemsPerPage)
+
   const fetchCustomers = async () => {
     try {
       setLoading(true)
@@ -77,6 +87,7 @@ export default function ClientesPage() {
 
   useEffect(() => {
     fetchCustomers()
+    setCurrentPage(1) // Reset para página 1 quando filtro muda
   }, [search])
 
   const handleDelete = async () => {
@@ -168,7 +179,7 @@ export default function ClientesPage() {
                       Carregando clientes...
                     </TableCell>
                   </TableRow>
-                ) : customers.length === 0 ? (
+                ) : paginatedCustomers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       Nenhum cliente encontrado.
@@ -181,7 +192,7 @@ export default function ClientesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  customers.map((customer) => (
+                  paginatedCustomers.map((customer) => (
                     <TableRow key={customer.id}>
                       <TableCell>
                         <div className="font-medium">{customer.name}</div>
@@ -239,6 +250,15 @@ export default function ClientesPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Paginação */}
+          <DataPagination
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 

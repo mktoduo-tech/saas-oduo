@@ -19,7 +19,10 @@ export type RegimeTributario =
 
 // Payload para emissão de NFS-e no Focus NFe
 export interface NfsePayload {
-  data_emissao?: string // ISO 8601
+  data_emissao: string // ISO 8601
+  natureza_operacao: number // 1 = Tributação no município
+  optante_simples_nacional: boolean
+  regime_especial_tributacao: number // 1-6
 
   prestador: {
     cnpj: string
@@ -47,6 +50,7 @@ export interface NfsePayload {
   servico: {
     valor_servicos: number
     discriminacao: string
+    item_lista_servico?: string
     codigo_tributario_municipio?: string
     aliquota: number
     iss_retido: boolean

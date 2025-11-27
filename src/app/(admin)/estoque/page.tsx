@@ -45,6 +45,7 @@ import {
   StockAdjustDialog,
 } from "@/components/stock"
 import { toast } from "sonner"
+import { DataPagination } from "@/components/ui/data-pagination"
 
 interface Equipment {
   id: string
@@ -88,6 +89,15 @@ export default function EstoquePage() {
   const [movementDialogOpen, setMovementDialogOpen] = useState(false)
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false)
 
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Calcular itens paginados
+  const totalItems = equipments.length
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedEquipments = equipments.slice(startIndex, startIndex + itemsPerPage)
+
   const loadStock = useCallback(async () => {
     setLoading(true)
     try {
@@ -114,6 +124,7 @@ export default function EstoquePage() {
 
   useEffect(() => {
     loadStock()
+    setCurrentPage(1) // Reset para página 1 quando filtros mudam
   }, [loadStock])
 
   // Extrair categorias únicas
@@ -213,7 +224,7 @@ export default function EstoquePage() {
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : equipments.length === 0 ? (
+          ) : paginatedEquipments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Nenhum equipamento encontrado</p>
@@ -234,7 +245,7 @@ export default function EstoquePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {equipments.map((equipment) => (
+                {paginatedEquipments.map((equipment) => (
                   <TableRow key={equipment.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -319,6 +330,15 @@ export default function EstoquePage() {
               </TableBody>
             </Table>
           )}
+
+          {/* Paginação */}
+          <DataPagination
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 

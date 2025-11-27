@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Providers } from "./providers"
 import { AdminLayoutClient } from "@/components/admin/admin-layout-client"
+import { getServerRootUrl } from "@/lib/redirect-utils"
 
 export default async function AdminLayout({
   children,
@@ -12,7 +13,8 @@ export default async function AdminLayout({
   const session = await auth()
 
   if (!session) {
-    redirect("/login")
+    // Redirecionar para login no domínio raiz
+    redirect(getServerRootUrl("/login"))
   }
 
   return (

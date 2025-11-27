@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { AlertTriangle, Bell } from "lucide-react"
+import { Package, PackageX, PackageMinus, PackageOpen, Wrench } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,6 +31,22 @@ interface AlertSummary {
   outOfStockCount: number
   damagedCount: number
   inMaintenanceCount: number
+}
+
+// Retorna o ícone correto baseado no tipo de alerta
+const getAlertIcon = (type: StockAlert["type"]) => {
+  switch (type) {
+    case "OUT_OF_STOCK":
+      return PackageX
+    case "LOW_STOCK":
+      return PackageMinus
+    case "DAMAGED":
+      return PackageOpen
+    case "MAINTENANCE":
+      return Wrench
+    default:
+      return Package
+  }
 }
 
 export function StockAlertBadge() {
@@ -78,7 +94,7 @@ export function StockAlertBadge() {
             hasCritical && "text-red-500 hover:text-red-600"
           )}
         >
-          <Bell className="h-5 w-5" />
+          <Package className="h-5 w-5" />
           {totalAlerts > 0 && (
             <Badge
               variant="destructive"
@@ -136,23 +152,28 @@ export function StockAlertBadge() {
                 )}
               >
                 <div className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      "p-1.5 rounded-full",
-                      alert.severity === "critical" && "bg-red-100",
-                      alert.severity === "warning" && "bg-amber-100",
-                      alert.severity === "info" && "bg-blue-100"
-                    )}
-                  >
-                    <AlertTriangle
-                      className={cn(
-                        "h-4 w-4",
-                        alert.severity === "critical" && "text-red-600",
-                        alert.severity === "warning" && "text-amber-600",
-                        alert.severity === "info" && "text-blue-600"
-                      )}
-                    />
-                  </div>
+                  {(() => {
+                    const AlertIcon = getAlertIcon(alert.type)
+                    return (
+                      <div
+                        className={cn(
+                          "p-1.5 rounded-full",
+                          alert.severity === "critical" && "bg-red-100",
+                          alert.severity === "warning" && "bg-amber-100",
+                          alert.severity === "info" && "bg-blue-100"
+                        )}
+                      >
+                        <AlertIcon
+                          className={cn(
+                            "h-4 w-4",
+                            alert.severity === "critical" && "text-red-600",
+                            alert.severity === "warning" && "text-amber-600",
+                            alert.severity === "info" && "text-blue-600"
+                          )}
+                        />
+                      </div>
+                    )
+                  })()}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
                       {alert.equipment.name}

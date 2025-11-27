@@ -47,6 +47,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePlanLimits } from "@/hooks/usePlanLimits"
+import { LimitWarningBanner } from "@/components/plan"
 
 type Equipment = {
   id: string
@@ -86,12 +89,25 @@ export default function EquipamentosPage() {
   const [equipmentToDelete, setEquipmentToDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Hook de limites do plano
+  const { usage, isNearEquipmentLimit, isAtEquipmentLimit } = usePlanLimits()
+
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Calcular itens paginados
+  const totalItems = filteredEquipments.length
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedEquipments = filteredEquipments.slice(startIndex, startIndex + itemsPerPage)
+
   useEffect(() => {
     fetchEquipments()
   }, [])
 
   useEffect(() => {
     filterEquipments()
+    setCurrentPage(1) // Reset para página 1 quando filtro muda
   }, [search, statusFilter, equipments])
 
   const fetchEquipments = async () => {
@@ -170,12 +186,22 @@ export default function EquipamentosPage() {
           </p>
         </div>
         <Link href="/equipamentos/novo">
-          <Button>
+          <Button disabled={isAtEquipmentLimit}>
             <Plus className="mr-2 h-4 w-4" />
             Novo Equipamento
           </Button>
         </Link>
       </div>
+
+      {/* Banner de Limite */}
+      {usage && (isNearEquipmentLimit || isAtEquipmentLimit) && (
+        <LimitWarningBanner
+          type="equipments"
+          current={usage.equipments.current}
+          max={usage.equipments.max}
+          percentage={usage.equipments.percentage}
+        />
+      )}
 
       {/* Filters */}
       <Card>
@@ -227,7 +253,7 @@ export default function EquipamentosPage() {
             <div className="text-center py-8 text-muted-foreground">
               Carregando...
             </div>
-          ) : filteredEquipments.length === 0 ? (
+          ) : paginatedEquipments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               Nenhum equipamento encontrado
             </div>
@@ -246,7 +272,7 @@ export default function EquipamentosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEquipments.map((equipment) => (
+                {paginatedEquipments.map((equipment) => (
                   <TableRow key={equipment.id}>
                     <TableCell>
                       <div className="relative h-14 w-14 rounded-md overflow-hidden bg-muted flex items-center justify-center">
@@ -324,6 +350,15 @@ export default function EquipamentosPage() {
               </TableBody>
             </Table>
           )}
+
+          {/* Paginação */}
+          <DataPagination
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 

@@ -68,6 +68,7 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { toast } from "sonner"
+import { DataPagination } from "@/components/ui/data-pagination"
 
 interface Invoice {
   id: string
@@ -162,7 +163,7 @@ export default function NotasFiscaisPage() {
     if (nfseEnabled) {
       fetchInvoices()
     }
-  }, [statusFilter, pagination.page, nfseEnabled])
+  }, [statusFilter, pagination.page, pagination.limit, nfseEnabled])
 
   const handleSearch = () => {
     setPagination((prev) => ({ ...prev, page: 1 }))
@@ -534,36 +535,14 @@ export default function NotasFiscaisPage() {
             </Table>
           </div>
 
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-muted-foreground">
-                Página {pagination.page} de {pagination.totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page <= 1}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-                  }
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() =>
-                    setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-                  }
-                >
-                  Próxima
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Paginação */}
+          <DataPagination
+            currentPage={pagination.page}
+            totalItems={pagination.total}
+            itemsPerPage={pagination.limit}
+            onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+            onItemsPerPageChange={(limit) => setPagination((prev) => ({ ...prev, limit, page: 1 }))}
+          />
         </CardContent>
       </Card>
 

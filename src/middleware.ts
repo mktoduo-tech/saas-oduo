@@ -79,10 +79,9 @@ export function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL("/login", req.nextUrl))
     }
 
-    // Se está logado e tenta acessar login ou cadastro, redireciona para dashboard
-    if (isLoggedIn && (pathname === "/login" || pathname === "/cadastro")) {
-        return NextResponse.redirect(new URL("/dashboard", req.nextUrl))
-    }
+    // Se está logado e tenta acessar login ou cadastro, deixa a página lidar com o redirect
+    // para garantir que o usuário seja direcionado ao subdomínio correto do tenant
+    // (a página de login verificará a sessão e fará o redirect apropriado)
 
     // Adiciona o tenant slug (do subdomínio) nos headers para uso nas APIs e páginas
     const response = NextResponse.next()

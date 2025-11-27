@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Check, Loader2, ArrowRight, Sparkles, Rocket } from "lucide-react"
+import { getTenantUrl } from "@/lib/redirect-utils"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,9 +15,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 
 const plans = {
-  starter: { name: "Starter", price: 97 },
-  professional: { name: "Professional", price: 197 },
-  enterprise: { name: "Enterprise", price: 397 },
+  starter: { name: "Starter", price: 997 },
+  professional: { name: "Professional", price: 1497 },
+  enterprise: { name: "Enterprise", price: 2997 },
 }
 
 export const dynamic = 'force-dynamic'
@@ -41,17 +42,20 @@ function SucessoContent() {
     setTenantSlug(tenant)
     if (planParam) setPlan(planParam)
 
-    const isLocalhost = window.location.hostname === 'localhost'
+    // Construir o domínio correto usando o ROOT_DOMAIN
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
+    const isLocalhost = rootDomain.includes('localhost')
     const domain = isLocalhost
       ? `${tenant}.localhost:3000`
-      : `${tenant}.${window.location.hostname}`
+      : `${tenant}.${rootDomain}`
     setTenantDomain(domain)
 
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer)
-          router.push(`/dashboard`)
+          // Redirecionar para o subdomínio correto do tenant
+          window.location.href = getTenantUrl(tenant, "/dashboard")
           return 0
         }
         return prev - 1
@@ -64,7 +68,11 @@ function SucessoContent() {
   const currentPlan = plans[plan as keyof typeof plans]
 
   const handleRedirectNow = () => {
-    router.push('/dashboard')
+    if (tenantSlug) {
+      window.location.href = getTenantUrl(tenantSlug, "/dashboard")
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   return (
@@ -83,7 +91,7 @@ function SucessoContent() {
               <Check className="h-10 w-10 text-emerald-400 relative z-10" />
             </div>
             <CardTitle className="text-3xl sm:text-4xl font-bold text-white mb-2">
-              Bem-vindo ao SaaS Oduo! 🎉
+              Bem-vindo ao ODuoLoc! 🎉
             </CardTitle>
             <CardDescription className="text-lg text-gray-300">
               Sua conta foi criada com sucesso
@@ -97,7 +105,7 @@ function SucessoContent() {
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Sua locadora</p>
                   <p className="font-semibold text-white text-lg break-all">
-                    {tenantDomain || `${tenantSlug}.oduo.com.br`}
+                    {tenantDomain || `${tenantSlug}.oduoloc.com.br`}
                   </p>
                 </div>
                 <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-sm px-4 py-1">
@@ -191,7 +199,7 @@ function SucessoContent() {
               </p>
               <p className="text-sm text-gray-500">
                 Precisa de ajuda?{" "}
-                <a href="mailto:suporte@oduo.com.br" className="text-blue-400 hover:text-blue-300 hover:underline transition-colors">
+                <a href="mailto:suporte@oduoloc.com.br" className="text-blue-400 hover:text-blue-300 hover:underline transition-colors">
                   Fale com nosso suporte
                 </a>
               </p>

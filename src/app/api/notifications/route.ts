@@ -15,6 +15,96 @@ export async function GET() {
     const now = new Date()
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
+    // Processar recorrências vencidas e criar transações
+    const overdueRecurrences = await prisma.recurringTransaction.findMany({
+      where: {
+        tenantId,
+        status: "ACTIVE",
+        nextDueDate: {
+          lte: now,
+        },
+      },
+    })
+
+    // Criar transações para cada recorrência vencida
+    for (const recurrence of overdueRecurrences) {
+      // Verificar se já existe transação para esta data (evitar duplicatas)
+      const existingTransaction = await prisma.financialTransaction.findFirst({
+        where: {
+          recurrenceId: recurrence.id,
+          dueDate: recurrence.nextDueDate,
+        },
+      })
+
+      if (existingTransaction) {
+        // Já existe, apenas atualizar a próxima data
+        const nextDate = new Date(recurrence.nextDueDate)
+        nextDate.setDate(nextDate.getDate() + recurrence.intervalDays)
+        const shouldComplete = recurrence.endDate && nextDate > recurrence.endDate
+
+        await prisma.recurringTransaction.update({
+          where: { id: recurrence.id },
+          data: {
+            nextDueDate: nextDate,
+            status: shouldComplete ? "COMPLETED" : "ACTIVE",
+          },
+        })
+        continue
+      }
+
+      // Criar a transação financeira
+      await prisma.financialTransaction.create({
+        data: {
+          tenantId,
+          type: recurrence.type,
+          description: recurrence.description,
+          amount: recurrence.amount,
+          date: recurrence.nextDueDate,
+          dueDate: recurrence.nextDueDate,
+          status: "OVERDUE", // Já está vencida
+          categoryId: recurrence.categoryId,
+          equipmentId: recurrence.equipmentId,
+          isRecurring: true,
+          recurrenceId: recurrence.id,
+        },
+      })
+
+      // Calcular próxima data de vencimento
+      const nextDate = new Date(recurrence.nextDueDate)
+      nextDate.setDate(nextDate.getDate() + recurrence.intervalDays)
+
+      // Verificar se a recorrência deve ser encerrada
+      const shouldComplete = recurrence.endDate && nextDate > recurrence.endDate
+
+      // Atualizar a recorrência
+      await prisma.recurringTransaction.update({
+        where: { id: recurrence.id },
+        data: {
+          nextDueDate: nextDate,
+          status: shouldComplete ? "COMPLETED" : "ACTIVE",
+        },
+      })
+    }
+
+    // Atualizar status de transações vencidas automaticamente
+    await prisma.financialTransaction.updateMany({
+      where: {
+        tenantId,
+        status: "PENDING",
+        dueDate: {
+          lt: now,
+        },
+      },
+      data: {
+        status: "OVERDUE",
+      },
+    })
+
+    // Datas para queries
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const in3Days = new Date(today)
+    in3Days.setDate(in3Days.getDate() + 3)
+
     // Buscar eventos recentes para criar notificações
     const [
       recentBookings,
@@ -22,6 +112,8 @@ export async function GET() {
       upcomingBookings,
       lowStockEquipments,
       recentPayments,
+      overdueTransactions,
+      upcomingDueTransactions,
     ] = await Promise.all([
       // Reservas criadas nas últimas 24h
       prisma.booking.findMany({
@@ -77,6 +169,36 @@ export async function GET() {
         },
         orderBy: { paidAt: "desc" },
         take: 5,
+      }),
+
+      // Contas vencidas (OVERDUE)
+      prisma.financialTransaction.findMany({
+        where: {
+          tenantId,
+          status: "OVERDUE",
+        },
+        include: {
+          category: { select: { name: true } },
+        },
+        orderBy: { dueDate: "asc" },
+        take: 10,
+      }),
+
+      // Contas próximas do vencimento (próximos 3 dias)
+      prisma.financialTransaction.findMany({
+        where: {
+          tenantId,
+          status: "PENDING",
+          dueDate: {
+            gte: today,
+            lte: in3Days,
+          },
+        },
+        include: {
+          category: { select: { name: true } },
+        },
+        orderBy: { dueDate: "asc" },
+        take: 10,
       }),
     ])
 
@@ -156,6 +278,47 @@ export async function GET() {
       }
     })
 
+    // Notificações de contas vencidas
+    overdueTransactions.forEach((transaction) => {
+      const daysOverdue = transaction.dueDate
+        ? Math.floor((now.getTime() - transaction.dueDate.getTime()) / (1000 * 60 * 60 * 24))
+        : 0
+
+      notifications.push({
+        id: `overdue-${transaction.id}`,
+        type: "warning",
+        title: transaction.type === "EXPENSE" ? "Conta a pagar vencida" : "Conta a receber vencida",
+        message: `${transaction.description} - R$ ${transaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (${daysOverdue} ${daysOverdue === 1 ? "dia" : "dias"} em atraso)`,
+        time: transaction.dueDate ? getTimeAgo(transaction.dueDate) : "Vencida",
+        link: "/financeiro",
+      })
+    })
+
+    // Notificações de contas próximas do vencimento
+    upcomingDueTransactions.forEach((transaction) => {
+      const daysUntilDue = transaction.dueDate
+        ? Math.ceil((transaction.dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        : 0
+
+      let timeText = ""
+      if (daysUntilDue <= 0) {
+        timeText = "Vence hoje"
+      } else if (daysUntilDue === 1) {
+        timeText = "Vence amanhã"
+      } else {
+        timeText = `Vence em ${daysUntilDue} dias`
+      }
+
+      notifications.push({
+        id: `upcoming-due-${transaction.id}`,
+        type: "info",
+        title: transaction.type === "EXPENSE" ? "Conta a pagar" : "Conta a receber",
+        message: `${transaction.description} - R$ ${transaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        time: timeText,
+        link: "/financeiro",
+      })
+    })
+
     // Ordenar por relevância (warnings primeiro, depois por tempo)
     notifications.sort((a, b) => {
       if (a.type === "warning" && b.type !== "warning") return -1
@@ -163,9 +326,13 @@ export async function GET() {
       return 0
     })
 
+    // Contar warnings (contas vencidas, pendentes, etc) como não lidas
+    const warningCount = notifications.filter(n => n.type === "warning").length
+    const overdueCount = overdueTransactions.length
+
     return NextResponse.json({
-      notifications: notifications.slice(0, 10),
-      unreadCount: notifications.filter(n => n.type === "warning").length,
+      notifications: notifications.slice(0, 15),
+      unreadCount: Math.max(warningCount, overdueCount),
     })
   } catch (error) {
     console.error("Erro ao buscar notificações:", error)

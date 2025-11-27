@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
+import { getRootUrl } from "@/lib/redirect-utils"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -35,21 +36,21 @@ import {
 const plans = {
   starter: {
     name: "Starter",
-    price: 97,
-    description: "Para locadoras iniciantes",
-    features: ["Até 50 equipamentos", "100 reservas/mês", "1 usuário"],
+    price: 997,
+    description: "Ideal para quem está começando",
+    features: ["Até 50 equipamentos", "2 usuários", "Dashboard básico"],
   },
   professional: {
     name: "Professional",
-    price: 197,
-    description: "Para locadoras em crescimento",
-    features: ["Até 200 equipamentos", "Reservas ilimitadas", "5 usuários"],
+    price: 1497,
+    description: "Para empresas em crescimento",
+    features: ["Até 200 equipamentos", "5 usuários", "+ Relatórios, API"],
   },
   enterprise: {
     name: "Enterprise",
-    price: 397,
-    description: "Para grandes operações",
-    features: ["Equipamentos ilimitados", "Reservas ilimitadas", "Usuários ilimitados"],
+    price: 2997,
+    description: "Solução completa para grandes operações",
+    features: ["Ilimitado", "Ilimitado", "+ Customizações", "40 H automações"],
   },
 }
 
@@ -138,7 +139,8 @@ function CheckoutContent() {
             toast.error("Por favor, faça login para acessar seu painel.")
             localStorage.removeItem("pendingCheckout")
             localStorage.removeItem("selectedPlan")
-            router.push(`/login?email=${encodeURIComponent(checkoutData.email)}`)
+            // Redirecionar para login no domínio raiz
+            window.location.href = getRootUrl(`/login?email=${encodeURIComponent(checkoutData.email)}`)
             return
           }
         } catch (error) {
@@ -146,7 +148,8 @@ function CheckoutContent() {
           toast.error("Erro ao fazer login. Por favor, faça login manualmente.")
           localStorage.removeItem("pendingCheckout")
           localStorage.removeItem("selectedPlan")
-          router.push(`/login?email=${encodeURIComponent(checkoutData.email)}`)
+          // Redirecionar para login no domínio raiz
+          window.location.href = getRootUrl(`/login?email=${encodeURIComponent(checkoutData.email)}`)
           return
         }
       }
@@ -214,7 +217,7 @@ function CheckoutContent() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-400">Locadora</p>
                     <p className="text-sm text-white truncate">
-                      {checkoutData.tenantSlug}.oduo.com.br
+                      {checkoutData.tenantSlug}.{process.env.NEXT_PUBLIC_ROOT_DOMAIN || "oduoloc.com.br"}
                     </p>
                   </div>
                 </div>

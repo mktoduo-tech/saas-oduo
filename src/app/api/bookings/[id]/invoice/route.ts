@@ -173,9 +173,18 @@ export async function POST(
 
     const message = error instanceof Error ? error.message : 'Erro desconhecido'
 
+    // Retornar 400 para erros de validação/configuração
+    const isValidationError = message.includes('incompleta') ||
+                              message.includes('obrigatório') ||
+                              message.includes('inválido') ||
+                              message.includes('não encontrada')
+
     return NextResponse.json(
-      { error: `Erro ao gerar NFS-e: ${message}` },
-      { status: 500 }
+      {
+        error: message,
+        details: error instanceof Error ? error.message : String(error)
+      },
+      { status: isValidationError ? 400 : 500 }
     )
   }
 }

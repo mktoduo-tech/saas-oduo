@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, DollarSign, TrendingUp, TrendingDown, Calendar, CreditCard, AlertCircle, CheckCircle, FileText, Download, Loader2 } from "lucide-react"
+import { Plus, DollarSign, TrendingUp, TrendingDown, Calendar, CreditCard, AlertCircle, CheckCircle, FileText, Download, Loader2, RefreshCw } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -19,9 +19,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -31,6 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { TransactionDialog } from "@/components/financial/TransactionDialog"
+import { RecurringTransactionCard } from "@/components/financial/RecurringTransactionCard"
+import { DataPagination } from "@/components/ui/data-pagination"
 
 interface Transaction {
   id: string
@@ -67,11 +68,28 @@ interface FinancialStats {
   }
 }
 
+interface RecurringTransaction {
+  id: string
+  type: "INCOME" | "EXPENSE"
+  description: string
+  amount: number
+  categoryId: string
+  category: { id: string; name: string; color: string | null }
+  equipmentId: string | null
+  equipment: { id: string; name: string } | null
+  intervalDays: number
+  startDate: string
+  endDate: string | null
+  nextDueDate: string
+  status: "ACTIVE" | "PAUSED" | "CANCELLED" | "COMPLETED"
+  _count?: { transactions: number }
+}
+
 export default function FinanceiroPage() {
   const [stats, setStats] = useState<FinancialStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [createDialog, setCreateDialog] = useState(false)
-  const [transactionType, setTransactionType] = useState("")
+  const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([])
 
   // Estado para dialog de recebimento
   const [paymentDialog, setPaymentDialog] = useState(false)
@@ -79,8 +97,24 @@ export default function FinanceiroPage() {
   const [paymentMethod, setPaymentMethod] = useState("")
   const [processingPayment, setProcessingPayment] = useState(false)
 
+  // Estado para dialog de pagamento de despesas
+  const [expensePaymentDialog, setExpensePaymentDialog] = useState(false)
+  const [selectedExpense, setSelectedExpense] = useState<Transaction | null>(null)
+  const [processingExpensePayment, setProcessingExpensePayment] = useState(false)
+
+  // Paginação para cada aba
+  const [cashflowPage, setCashflowPage] = useState(1)
+  const [cashflowItemsPerPage, setCashflowItemsPerPage] = useState(10)
+  const [receivablesPage, setReceivablesPage] = useState(1)
+  const [receivablesItemsPerPage, setReceivablesItemsPerPage] = useState(10)
+  const [payablesPage, setPayablesPage] = useState(1)
+  const [payablesItemsPerPage, setPayablesItemsPerPage] = useState(10)
+  const [recurringPage, setRecurringPage] = useState(1)
+  const [recurringItemsPerPage, setRecurringItemsPerPage] = useState(10)
+
   useEffect(() => {
     fetchFinancialData()
+    fetchRecurringTransactions()
   }, [])
 
   const fetchFinancialData = async () => {
@@ -97,15 +131,65 @@ export default function FinanceiroPage() {
     }
   }
 
-  const handleCreateTransaction = () => {
-    toast.success("Funcionalidade em desenvolvimento")
-    setCreateDialog(false)
+  const fetchRecurringTransactions = async () => {
+    try {
+      const response = await fetch("/api/financial/recurring")
+      if (response.ok) {
+        const data = await response.json()
+        setRecurringTransactions(data.recurring || [])
+      }
+    } catch (error) {
+      console.error("Erro ao buscar recorrências:", error)
+    }
+  }
+
+  const handleTransactionSuccess = () => {
+    fetchFinancialData()
+    fetchRecurringTransactions()
   }
 
   const openPaymentDialog = (transaction: Transaction) => {
     setSelectedTransaction(transaction)
     setPaymentMethod("")
     setPaymentDialog(true)
+  }
+
+  const openExpensePaymentDialog = (transaction: Transaction) => {
+    setSelectedExpense(transaction)
+    setExpensePaymentDialog(true)
+  }
+
+  const handlePayExpense = async () => {
+    if (!selectedExpense) {
+      toast.error("Transação inválida")
+      return
+    }
+
+    setProcessingExpensePayment(true)
+    try {
+      const response = await fetch(`/api/financial/transactions/${selectedExpense.id}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao registrar pagamento")
+      }
+
+      toast.success(data.message || "Pagamento registrado com sucesso!")
+      setExpensePaymentDialog(false)
+      setSelectedExpense(null)
+
+      // Recarregar dados
+      fetchFinancialData()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro ao registrar pagamento"
+      toast.error(errorMessage)
+    } finally {
+      setProcessingExpensePayment(false)
+    }
   }
 
   const handleReceivePayment = async () => {
@@ -164,6 +248,30 @@ export default function FinanceiroPage() {
   }
 
   const transactions = stats?.transactions || []
+
+  // Filtrar transações por tipo para cada aba
+  const receivableTransactions = transactions.filter(t => t.type === "income" && t.status === "pending")
+  const payableTransactions = transactions.filter(t => t.type === "expense" && (t.status === "pending" || t.status === "overdue"))
+
+  // Filtrar recorrências de despesas ativas para mostrar em Contas a Pagar
+  const activeExpenseRecurring = recurringTransactions.filter(r => r.type === "EXPENSE" && r.status === "ACTIVE")
+
+  // Paginação - Fluxo de Caixa
+  const cashflowStartIndex = (cashflowPage - 1) * cashflowItemsPerPage
+  const paginatedCashflow = transactions.slice(cashflowStartIndex, cashflowStartIndex + cashflowItemsPerPage)
+
+  // Paginação - Contas a Receber
+  const receivablesStartIndex = (receivablesPage - 1) * receivablesItemsPerPage
+  const paginatedReceivables = receivableTransactions.slice(receivablesStartIndex, receivablesStartIndex + receivablesItemsPerPage)
+
+  // Paginação - Contas a Pagar
+  const payablesStartIndex = (payablesPage - 1) * payablesItemsPerPage
+  const paginatedPayables = payableTransactions.slice(payablesStartIndex, payablesStartIndex + payablesItemsPerPage)
+
+  // Paginação - Recorrências
+  const recurringStartIndex = (recurringPage - 1) * recurringItemsPerPage
+  const paginatedRecurring = recurringTransactions.slice(recurringStartIndex, recurringStartIndex + recurringItemsPerPage)
+
   const dre = stats?.dre || { receitas: [], despesas: [] }
   const summary = stats?.summary || {
     totalIncome: 0,
@@ -193,89 +301,19 @@ export default function FinanceiroPage() {
             <Download className="mr-2 h-4 w-4" />
             Exportar Relatório
           </Button>
-          <Dialog open={createDialog} onOpenChange={setCreateDialog}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Transação
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Criar Nova Transação</DialogTitle>
-                <DialogDescription>
-                  Adicione uma receita ou despesa
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Tipo *</Label>
-                  <Select value={transactionType} onValueChange={setTransactionType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="income">Receita</SelectItem>
-                      <SelectItem value="expense">Despesa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descrição *</Label>
-                  <Input
-                    id="description"
-                    placeholder="Ex: Aluguel de Equipamento"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Valor (R$) *</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="1000.00"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">Categoria *</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="locacao">Locação</SelectItem>
-                      <SelectItem value="servico">Serviço</SelectItem>
-                      <SelectItem value="fornecedor">Fornecedor</SelectItem>
-                      <SelectItem value="manutencao">Manutenção</SelectItem>
-                      <SelectItem value="salario">Salário</SelectItem>
-                      <SelectItem value="operacional">Operacional</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="date">Data de Vencimento *</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button onClick={handleCreateTransaction} className="flex-1">
-                    Criar Transação
-                  </Button>
-                  <Button variant="outline" onClick={() => setCreateDialog(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button className="w-full sm:w-auto" onClick={() => setCreateDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Transação
+          </Button>
         </div>
       </div>
+
+      {/* Dialog de Nova Transação */}
+      <TransactionDialog
+        open={createDialog}
+        onOpenChange={setCreateDialog}
+        onSuccess={handleTransactionSuccess}
+      />
 
       {/* Financial Overview */}
       <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -340,7 +378,7 @@ export default function FinanceiroPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="cashflow" className="space-y-4 sm:space-y-6">
-        <TabsList className="w-full grid grid-cols-2 lg:grid-cols-4 h-auto gap-1">
+        <TabsList className="w-full grid grid-cols-3 lg:grid-cols-5 h-auto gap-1">
           <TabsTrigger value="cashflow" className="text-xs sm:text-sm">
             <Calendar className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Fluxo de Caixa</span>
@@ -355,6 +393,11 @@ export default function FinanceiroPage() {
             <TrendingDown className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Contas a Pagar</span>
             <span className="sm:hidden">Pagar</span>
+          </TabsTrigger>
+          <TabsTrigger value="recurring" className="text-xs sm:text-sm">
+            <RefreshCw className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Recorrências</span>
+            <span className="sm:hidden">Recorr.</span>
           </TabsTrigger>
           <TabsTrigger value="dre" className="text-xs sm:text-sm">
             <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
@@ -372,7 +415,7 @@ export default function FinanceiroPage() {
             <CardContent>
               {transactions.length > 0 ? (
                 <div className="space-y-3">
-                  {transactions.map((transaction) => (
+                  {paginatedCashflow.map((transaction) => (
                     <div
                       key={transaction.id}
                       className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 border rounded-lg"
@@ -428,6 +471,15 @@ export default function FinanceiroPage() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Paginação */}
+                  <DataPagination
+                    currentPage={cashflowPage}
+                    totalItems={transactions.length}
+                    itemsPerPage={cashflowItemsPerPage}
+                    onPageChange={setCashflowPage}
+                    onItemsPerPageChange={setCashflowItemsPerPage}
+                  />
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
@@ -451,47 +503,53 @@ export default function FinanceiroPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {transactions
-                  .filter(t => t.type === "income" && t.status === "pending")
-                  .map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm sm:text-base mb-1 truncate">{transaction.description}</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          Vencimento:{" "}
-                          {transaction.dueDate
-                            ? new Date(transaction.dueDate).toLocaleDateString("pt-BR")
-                            : "N/A"}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                        <div className="text-base sm:text-lg font-bold text-green-600">
-                          R${" "}
-                          {transaction.amount.toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => openPaymentDialog(transaction)}
-                          className="text-xs sm:text-sm"
-                        >
-                          <CheckCircle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                          <span className="hidden sm:inline">Receber</span>
-                          <span className="sm:hidden">✓</span>
-                        </Button>
-                      </div>
+                {paginatedReceivables.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm sm:text-base mb-1 truncate">{transaction.description}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        Vencimento:{" "}
+                        {transaction.dueDate
+                          ? new Date(transaction.dueDate).toLocaleDateString("pt-BR")
+                          : "N/A"}
+                      </p>
                     </div>
-                  ))}
-                {transactions.filter(t => t.type === "income" && t.status === "pending")
-                  .length === 0 && (
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                      <div className="text-base sm:text-lg font-bold text-green-600">
+                        R${" "}
+                        {transaction.amount.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => openPaymentDialog(transaction)}
+                        className="text-xs sm:text-sm"
+                      >
+                        <CheckCircle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Receber</span>
+                        <span className="sm:hidden">✓</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {receivableTransactions.length === 0 && (
                   <p className="text-center py-8 text-muted-foreground">
                     Nenhuma conta a receber
                   </p>
                 )}
+
+                {/* Paginação */}
+                <DataPagination
+                  currentPage={receivablesPage}
+                  totalItems={receivableTransactions.length}
+                  itemsPerPage={receivablesItemsPerPage}
+                  onPageChange={setReceivablesPage}
+                  onItemsPerPageChange={setReceivablesItemsPerPage}
+                />
               </div>
             </CardContent>
           </Card>
@@ -508,63 +566,144 @@ export default function FinanceiroPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {transactions
-                  .filter(
-                    t =>
-                      t.type === "expense" &&
-                      (t.status === "pending" || t.status === "overdue")
-                  )
-                  .map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg ${
-                        transaction.status === "overdue"
-                          ? "border-red-300 bg-red-50 dark:bg-red-950"
-                          : ""
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
-                          <h3 className="font-medium text-sm sm:text-base truncate">{transaction.description}</h3>
-                          {getStatusBadge(transaction.status)}
-                        </div>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          Vencimento:{" "}
-                          {transaction.dueDate
-                            ? new Date(transaction.dueDate).toLocaleDateString("pt-BR")
-                            : "N/A"}
-                        </p>
+                {paginatedPayables.map((transaction) => (
+                  <div
+                    key={transaction.id}
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 border rounded-lg ${
+                      transaction.status === "overdue"
+                        ? "border-red-300 bg-red-50 dark:bg-red-950"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                        <h3 className="font-medium text-sm sm:text-base truncate">{transaction.description}</h3>
+                        {getStatusBadge(transaction.status)}
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
-                        <div className="text-base sm:text-lg font-bold text-red-600">
-                          R${" "}
-                          {transaction.amount.toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant={transaction.status === "overdue" ? "destructive" : "default"}
-                          onClick={() => toast.success("Funcionalidade em desenvolvimento")}
-                          className="text-xs sm:text-sm"
-                        >
-                          <CreditCard className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                          <span className="hidden sm:inline">Pagar</span>
-                          <span className="sm:hidden">💳</span>
-                        </Button>
-                      </div>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        Vencimento:{" "}
+                        {transaction.dueDate
+                          ? new Date(transaction.dueDate).toLocaleDateString("pt-BR")
+                          : "N/A"}
+                      </p>
                     </div>
-                  ))}
-                {transactions.filter(
-                  t =>
-                    t.type === "expense" &&
-                    (t.status === "pending" || t.status === "overdue")
-                ).length === 0 && (
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                      <div className="text-base sm:text-lg font-bold text-red-600">
+                        R${" "}
+                        {transaction.amount.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={transaction.status === "overdue" ? "destructive" : "default"}
+                        onClick={() => openExpensePaymentDialog(transaction)}
+                        className="text-xs sm:text-sm"
+                      >
+                        <CreditCard className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Pagar</span>
+                        <span className="sm:hidden">Pagar</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {payableTransactions.length === 0 && activeExpenseRecurring.length === 0 && (
                   <p className="text-center py-8 text-muted-foreground">
                     Nenhuma conta a pagar
                   </p>
                 )}
+
+                {/* Paginação */}
+                <DataPagination
+                  currentPage={payablesPage}
+                  totalItems={payableTransactions.length}
+                  itemsPerPage={payablesItemsPerPage}
+                  onPageChange={setPayablesPage}
+                  onItemsPerPageChange={setPayablesItemsPerPage}
+                />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Cobranças Recorrentes */}
+          {activeExpenseRecurring.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg font-headline tracking-wide flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
+                  Cobranças Recorrentes
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Despesas que se repetem periodicamente
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {activeExpenseRecurring.map((recurring) => (
+                    <RecurringTransactionCard
+                      key={recurring.id}
+                      recurring={recurring}
+                      onUpdate={() => {
+                        fetchFinancialData()
+                        fetchRecurringTransactions()
+                      }}
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Recorrências */}
+        <TabsContent value="recurring" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg font-headline tracking-wide">Transações Recorrentes</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Gerencie suas despesas e receitas que se repetem periodicamente
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {recurringTransactions.length > 0 ? (
+                <div className="space-y-3">
+                  {paginatedRecurring.map((recurring) => (
+                    <RecurringTransactionCard
+                      key={recurring.id}
+                      recurring={recurring}
+                      onUpdate={() => {
+                        fetchFinancialData()
+                        fetchRecurringTransactions()
+                      }}
+                    />
+                  ))}
+
+                  {/* Paginação */}
+                  <DataPagination
+                    currentPage={recurringPage}
+                    totalItems={recurringTransactions.length}
+                    itemsPerPage={recurringItemsPerPage}
+                    onPageChange={setRecurringPage}
+                    onItemsPerPageChange={setRecurringItemsPerPage}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Nenhuma transação recorrente</p>
+                  <p className="text-sm mt-2">
+                    Crie uma transação recorrente clicando em &quot;Nova Transação&quot; e ativando a opção de recorrência
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => setCreateDialog(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Criar Transação Recorrente
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -783,6 +922,76 @@ export default function FinanceiroPage() {
                 <>
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Confirmar Recebimento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Pagamento de Despesa */}
+      <Dialog open={expensePaymentDialog} onOpenChange={setExpensePaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar Pagamento</DialogTitle>
+            <DialogDescription>
+              Confirme o pagamento desta despesa
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedExpense && (
+            <div className="space-y-4 py-4">
+              {/* Informações da transação */}
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="font-medium">{selectedExpense.description}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Valor:</span>
+                  <span className="text-lg font-bold text-red-600">
+                    R$ {selectedExpense.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {selectedExpense.dueDate && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Vencimento:</span>
+                    <span className="text-sm">
+                      {new Date(selectedExpense.dueDate).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Categoria:</span>
+                  <span className="text-sm">{selectedExpense.category}</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Ao confirmar, esta despesa será marcada como paga e não aparecerá mais nas contas a pagar.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setExpensePaymentDialog(false)}
+              disabled={processingExpensePayment}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handlePayExpense}
+              disabled={processingExpensePayment}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {processingExpensePayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Confirmar Pagamento
                 </>
               )}
             </Button>

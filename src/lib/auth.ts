@@ -42,8 +42,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         return null
                     }
 
-                    const tenantSlug = credentials.tenantSlug as string | undefined
-                    console.log("[AUTH] Email:", credentials.email, "TenantSlug:", tenantSlug || "null")
+                    // Garantir que tenantSlug seja null se for "undefined" (string) ou vazio
+                    const rawTenantSlug = credentials.tenantSlug as string | undefined
+                    const tenantSlug = (rawTenantSlug && rawTenantSlug !== "undefined" && rawTenantSlug.trim() !== "")
+                        ? rawTenantSlug
+                        : null
+                    console.log("[AUTH] Email:", credentials.email, "TenantSlug:", tenantSlug || "null (domínio principal)")
 
                     // Buscar usuário no banco de dados
                     const user = await prisma.user.findUnique({
@@ -57,8 +61,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     }
                     console.log("[AUTH] Usuário encontrado:", user.email, "Role:", user.role, "Tenant:", user.tenant.slug)
 
-                    // Validação de tenant: se acessando via subdomínio, usuário deve pertencer ao tenant
-                    // SUPER_ADMIN pode acessar de qualquer subdomínio
+                    // Validação de tenant:
+                    // - Se acessando via subdomínio (tenantSlug != null), usuário deve pertencer ao tenant
+                    // - Se acessando via domínio principal (tenantSlug == null), qualquer usuário pode logar
+                    // - SUPER_ADMIN pode acessar de qualquer subdomínio
                     if (tenantSlug && user.role !== "SUPER_ADMIN") {
                         if (user.tenant.slug !== tenantSlug) {
                             console.warn(`[AUTH] Tentativa de login em tenant incorreto: ${tenantSlug} por usuário do tenant ${user.tenant.slug}`)

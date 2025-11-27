@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { getTenantUrl, getRootUrl } from "@/lib/redirect-utils"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -63,10 +64,37 @@ function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
   const [isLoading, setIsLoading] = useState(false)
   const [tenantSlug, setTenantSlug] = useState<string | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
 
   useEffect(() => {
     setTenantSlug(getTenantSlug())
   }, [])
+
+  // Verificar se usuário já está logado e redirecionar para o subdomínio correto
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        const session = await getSession()
+        if (session?.user) {
+          if (session.user.role === "SUPER_ADMIN") {
+            // Super admin vai para o painel no domínio raiz
+            window.location.href = getRootUrl("/super-admin")
+          } else if (session.user.tenantSlug) {
+            // Usuário de tenant vai para o subdomínio correto
+            window.location.href = getTenantUrl(session.user.tenantSlug, "/dashboard")
+          } else {
+            router.push("/dashboard")
+          }
+        } else {
+          setCheckingSession(false)
+        }
+      } catch {
+        setCheckingSession(false)
+      }
+    }
+
+    checkExistingSession()
+  }, [router])
 
   const {
     register,
@@ -98,18 +126,14 @@ function LoginForm() {
         setIsLoading(false)
       } else {
         // Buscar sessão para verificar o role do usuário
-        const session = await getSession()
+        const newSession = await getSession()
 
-        // Redirecionar super admin para painel de super admin
-        if (session?.user?.role === "SUPER_ADMIN") {
-          router.push("/super-admin")
-          router.refresh()
-        } else if (session?.user?.tenantSlug) {
-          // Redirecionar tenant para seu subdomínio
-          const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "localhost:3000"
-          const protocol = window.location.protocol
-          const tenantUrl = `${protocol}//${session.user.tenantSlug}.${rootDomain}/dashboard`
-          window.location.href = tenantUrl
+        // Redirecionar super admin para painel de super admin (domínio raiz)
+        if (newSession?.user?.role === "SUPER_ADMIN") {
+          window.location.href = getRootUrl("/super-admin")
+        } else if (newSession?.user?.tenantSlug) {
+          // Redirecionar tenant para seu subdomínio correto
+          window.location.href = getTenantUrl(newSession.user.tenantSlug, "/dashboard")
         } else {
           router.push(callbackUrl)
           router.refresh()
@@ -119,6 +143,20 @@ function LoginForm() {
       toast.error("Erro ao fazer login. Tente novamente.")
       setIsLoading(false)
     }
+  }
+
+  // Mostrar loading enquanto verifica sessão existente
+  if (checkingSession) {
+    return (
+      <Card className="w-full border-white/10 bg-black/40 backdrop-blur-xl shadow-2xl">
+        <CardContent className="flex items-center justify-center py-16">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+            <p className="text-gray-400 text-sm">Verificando sessão...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -204,9 +242,7 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md p-4 z-10">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-            ODuo Locação
-          </h1>
+          <img src="/logo.svg" alt="ODuoLoc" className="h-36 w-auto mx-auto mb-4" />
           <p className="text-gray-500 mt-2 text-sm">Sistema de Gestão para Locadoras</p>
         </div>
 

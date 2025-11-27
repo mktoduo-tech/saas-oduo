@@ -55,6 +55,8 @@ import {
   ExternalLink,
   Loader2
 } from "lucide-react"
+import { usePlanLimits } from "@/hooks/usePlanLimits"
+import { LimitWarningBanner } from "@/components/plan"
 
 interface Equipment {
   id: string
@@ -109,6 +111,9 @@ const statusColors: Record<string, string> = {
 export default function CalendarioPage() {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar>(null)
+
+  // Hook de limites do plano
+  const { usage, isNearBookingLimit, isAtBookingLimit } = usePlanLimits()
 
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [equipments, setEquipments] = useState<Equipment[]>([])
@@ -356,11 +361,21 @@ export default function CalendarioPage() {
             Visualize e gerencie todas as reservas
           </p>
         </div>
-        <Button onClick={() => router.push("/reservas/novo")}>
+        <Button onClick={() => router.push("/reservas/novo")} disabled={isAtBookingLimit}>
           <Plus className="mr-2 h-4 w-4" />
           Nova Reserva
         </Button>
       </div>
+
+      {/* Banner de Limite */}
+      {usage && (isNearBookingLimit || isAtBookingLimit) && (
+        <LimitWarningBanner
+          type="bookings"
+          current={usage.bookingsThisMonth.current}
+          max={usage.bookingsThisMonth.max}
+          percentage={usage.bookingsThisMonth.percentage}
+        />
+      )}
 
       {/* Filtros */}
       <Card>
@@ -721,8 +736,55 @@ export default function CalendarioPage() {
           font-size: 0.75rem;
         }
 
+        /* DESTAQUE DO DIA ATUAL - Estilos com alta especificidade */
         .fc .fc-daygrid-day.fc-day-today {
-          background-color: hsl(var(--primary) / 0.1);
+          background-color: hsl(var(--primary) / 0.15) !important;
+          position: relative !important;
+        }
+
+        .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-frame {
+          border: 2px solid hsl(var(--primary)) !important;
+          border-radius: 8px !important;
+          background-color: hsl(var(--primary) / 0.08) !important;
+        }
+
+        .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number,
+        .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-top a {
+          background: hsl(var(--primary)) !important;
+          color: white !important;
+          border-radius: 50% !important;
+          width: 28px !important;
+          height: 28px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          font-weight: 700 !important;
+          margin: 4px !important;
+          text-decoration: none !important;
+        }
+
+        /* Garantir destaque também na view de semana/dia */
+        .fc .fc-timegrid-col.fc-day-today {
+          background-color: hsl(var(--primary) / 0.1) !important;
+        }
+
+        .fc .fc-col-header-cell.fc-day-today {
+          background-color: hsl(var(--primary) / 0.15) !important;
+        }
+
+        .fc .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+          color: hsl(var(--primary)) !important;
+          font-weight: 700 !important;
+        }
+
+        /* Destaque na lista também */
+        .fc .fc-list-day.fc-day-today {
+          background-color: hsl(var(--primary) / 0.15) !important;
+        }
+
+        .fc .fc-list-day.fc-day-today .fc-list-day-cushion {
+          background-color: hsl(var(--primary)) !important;
+          color: white !important;
         }
 
         .fc .fc-daygrid-event {
@@ -755,8 +817,44 @@ export default function CalendarioPage() {
           margin-left: 2px;
         }
 
+        /* Feedback visual durante seleção/arrasto */
         .fc .fc-highlight {
-          background: hsl(var(--primary) / 0.2);
+          background: rgba(59, 130, 246, 0.25) !important;
+          border: 2px dashed #3b82f6 !important;
+          border-radius: 6px;
+          transition: all 0.15s ease;
+        }
+
+        /* Cursor durante hover em slots do calendário */
+        .fc .fc-timegrid-slot:hover,
+        .fc .fc-daygrid-day:hover {
+          cursor: crosshair;
+        }
+
+        /* Efeito ao clicar e segurar (arrasto) */
+        .fc .fc-timegrid-slot:active,
+        .fc .fc-daygrid-day-frame:active {
+          background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Mirror (preview) do evento sendo criado/arrastado */
+        .fc .fc-event-mirror {
+          background: rgba(59, 130, 246, 0.6) !important;
+          border: 2px solid #3b82f6 !important;
+          border-radius: 6px;
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+          opacity: 0.85;
+        }
+
+        /* Evento sendo arrastado */
+        .fc .fc-event-dragging {
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+          transform: scale(1.02);
+        }
+
+        /* Evento sendo redimensionado */
+        .fc .fc-event-resizing {
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
         }
 
         /* Responsividade */

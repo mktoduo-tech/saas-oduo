@@ -27,46 +27,41 @@ const plans: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    price: 97,
+    price: 997,
     period: "mês",
-    description: "Para locadoras iniciantes",
+    description: "Ideal para quem está começando",
     features: [
+      "Até 2 usuários",
       "Até 50 equipamentos",
-      "100 reservas/mês",
-      "1 usuário",
-      "Suporte por email",
-      "Relatórios básicos",
+      "200 reservas/mês",
+      "5GB de armazenamento",
     ],
   },
   {
     id: "professional",
     name: "Professional",
-    price: 197,
+    price: 1497,
     period: "mês",
-    description: "Para locadoras em crescimento",
+    description: "Para empresas em crescimento",
     popular: true,
     features: [
+      "Até 5 usuários",
       "Até 200 equipamentos",
-      "Reservas ilimitadas",
-      "5 usuários",
-      "Suporte prioritário",
-      "Relatórios avançados",
-      "API de integração",
+      "1000 reservas/mês",
+      "20GB de armazenamento",
     ],
   },
   {
     id: "enterprise",
     name: "Enterprise",
-    price: 397,
+    price: 2997,
     period: "mês",
-    description: "Para grandes operações",
+    description: "Solução completa para grandes operações",
     features: [
+      "Até 10 usuários",
       "Equipamentos ilimitados",
       "Reservas ilimitadas",
-      "Usuários ilimitados",
-      "Suporte 24/7",
-      "Gerente dedicado",
-      "Personalização completa",
+      "500GB de armazenamento",
     ],
   },
 ]
@@ -168,8 +163,20 @@ export default function PlanosPage() {
           ))}
         </div>
 
+        {/* Precisa de mais? */}
+        <div className="mt-12 text-center p-8 rounded-2xl border border-white/10 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 max-w-2xl mx-auto">
+          <h3 className="text-xl font-bold text-white mb-2">Precisa de mais?</h3>
+          <p className="text-gray-400 mb-4">
+            Temos soluções personalizadas para operações de grande escala.
+          </p>
+          <a href="mailto:contato@oduoloc.com.br" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors font-medium">
+            Fale com nosso time de vendas
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+
         {/* Trust Badges */}
-        <div className="mt-16 text-center space-y-4">
+        <div className="mt-12 text-center space-y-4">
           <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-gray-400">
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-blue-400" />

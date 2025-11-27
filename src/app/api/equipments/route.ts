@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { checkEquipmentLimit } from "@/lib/plan-limits"
 
 // GET - Listar equipamentos
 export async function GET(request: NextRequest) {
@@ -48,6 +49,24 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user?.tenantId) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+    }
+
+    // Verificar limite de equipamentos do plano
+    const limitCheck = await checkEquipmentLimit(session.user.tenantId)
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: "PLAN_LIMIT_EXCEEDED",
+          message: limitCheck.message,
+          details: {
+            limitType: "equipments",
+            current: limitCheck.current,
+            max: limitCheck.max,
+            upgradeUrl: "/renovar"
+          }
+        },
+        { status: 403 }
+      )
     }
 
     const body = await request.json()

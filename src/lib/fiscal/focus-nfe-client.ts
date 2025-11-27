@@ -40,7 +40,7 @@ export class FocusNfeClient {
   /**
    * Faz uma requisição autenticada para a API
    */
-  private async request<T>(
+  async request<T>(
     method: string,
     path: string,
     body?: unknown
@@ -49,6 +49,8 @@ export class FocusNfeClient {
 
     // Focus NFe usa Basic Auth com token:''
     const auth = Buffer.from(`${this.token}:`).toString('base64')
+
+    console.log('[Focus NFe] Request:', { method, url, hasBody: !!body })
 
     const response = await fetch(url, {
       method,
@@ -60,6 +62,12 @@ export class FocusNfeClient {
     })
 
     const data = await response.json().catch(() => ({}))
+
+    console.log('[Focus NFe] Response:', {
+      status: response.status,
+      ok: response.ok,
+      data: JSON.stringify(data, null, 2)
+    })
 
     if (!response.ok) {
       throw mapHttpError(response.status, data)

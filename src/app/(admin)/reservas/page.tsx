@@ -34,7 +34,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Trash2, Calendar, User, Package, MoreHorizontal, Mail, FileText, Receipt, Send, Download } from "lucide-react"
+import { Plus, Edit, Trash2, Calendar, User, Package, MoreHorizontal, Mail, FileText, Receipt, Send, Download, FileCheck } from "lucide-react"
+import { DataPagination } from "@/components/ui/data-pagination"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +48,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { downloadDocumentAsPDF } from "@/lib/pdf-generator"
+import { usePlanLimits } from "@/hooks/usePlanLimits"
+import { LimitWarningBanner } from "@/components/plan"
 
 interface Booking {
   id: string
@@ -89,6 +92,18 @@ export default function ReservasPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
+  // Hook de limites do plano
+  const { usage, isNearBookingLimit, isAtBookingLimit } = usePlanLimits()
+
+  // Paginação
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Calcular itens paginados
+  const totalItems = bookings.length
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedBookings = bookings.slice(startIndex, startIndex + itemsPerPage)
+
   const fetchBookings = async () => {
     try {
       setLoading(true)
@@ -111,6 +126,7 @@ export default function ReservasPage() {
 
   useEffect(() => {
     fetchBookings()
+    setCurrentPage(1) // Reset para página 1 quando filtro muda
   }, [statusFilter])
 
   const handleDelete = async () => {
@@ -204,6 +220,34 @@ export default function ReservasPage() {
     }
   }
 
+  const handleEmitirNFSe = async (bookingId: string) => {
+    try {
+      toast.info("Gerando NFS-e...")
+      const response = await fetch(`/api/bookings/${bookingId}/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendEmail: true }),
+      })
+
+      if (response.ok) {
+        await response.json()
+        toast.success("NFS-e gerada com sucesso!")
+        // Atualizar lista de reservas
+        fetchBookings()
+      } else {
+        const errorData = await response.json()
+        console.error("Erro ao gerar NFS-e:", errorData)
+        // Mostrar mensagem de erro detalhada
+        toast.error(errorData.error || errorData.details || "Erro ao gerar NFS-e", {
+          duration: 8000, // 8 segundos para o usuário ler
+        })
+      }
+    } catch (error) {
+      console.error("Error generating NFS-e:", error)
+      toast.error("Erro ao gerar NFS-e")
+    }
+  }
+
   return (
     <div className="p-8 space-y-6">
       {/* Header */}
@@ -215,12 +259,22 @@ export default function ReservasPage() {
           </p>
         </div>
         <Link href="/reservas/novo">
-          <Button className="gap-2">
+          <Button className="gap-2" disabled={isAtBookingLimit}>
             <Plus className="h-4 w-4" />
             Nova Reserva
           </Button>
         </Link>
       </div>
+
+      {/* Banner de Limite */}
+      {usage && (isNearBookingLimit || isAtBookingLimit) && (
+        <LimitWarningBanner
+          type="bookings"
+          current={usage.bookingsThisMonth.current}
+          max={usage.bookingsThisMonth.max}
+          percentage={usage.bookingsThisMonth.percentage}
+        />
+      )}
 
       {/* Filters */}
       <Card>
@@ -275,7 +329,7 @@ export default function ReservasPage() {
                       Carregando reservas...
                     </TableCell>
                   </TableRow>
-                ) : bookings.length === 0 ? (
+                ) : paginatedBookings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
                       Nenhuma reserva encontrada.
@@ -288,7 +342,7 @@ export default function ReservasPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  bookings.map((booking) => (
+                  paginatedBookings.map((booking) => (
                     <TableRow key={booking.id}>
                       <TableCell>
                         <div className="flex items-start gap-2">
@@ -396,6 +450,15 @@ export default function ReservasPage() {
                                 Baixar Recibo (PDF)
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              {["CONFIRMED", "COMPLETED"].includes(booking.status) && (
+                                <DropdownMenuItem
+                                  onClick={() => handleEmitirNFSe(booking.id)}
+                                >
+                                  <FileCheck className="h-4 w-4 mr-2" />
+                                  Emitir NFS-e
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => setDeleteId(booking.id)}
                                 className="text-destructive"
@@ -413,6 +476,15 @@ export default function ReservasPage() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Paginação */}
+          <DataPagination
+            currentPage={currentPage}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 

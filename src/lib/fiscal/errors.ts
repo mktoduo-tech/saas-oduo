@@ -124,7 +124,13 @@ export function mapHttpError(status: number, body?: unknown): FiscalError {
       const errors = Array.isArray((body as { erros?: unknown[] })?.erros)
         ? ((body as { erros: FocusNfeError[] }).erros)
         : []
-      return new FocusNfeApiError('Dados inválidos para emissão', errors, status)
+
+      // Se não tem erros estruturados, tentar extrair mensagem do body
+      const message400 = errors.length === 0 && body && typeof body === 'object'
+        ? `Dados inválidos: ${JSON.stringify(body)}`
+        : 'Dados inválidos para emissão'
+
+      return new FocusNfeApiError(message400, errors, status)
 
     case 404:
       return new FiscalError('Recurso não encontrado no Focus NFe', 'FOCUS_NFE_NOT_FOUND')

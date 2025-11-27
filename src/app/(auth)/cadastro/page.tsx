@@ -41,9 +41,9 @@ type RegisterFormData = z.infer<typeof registerSchema>
 
 // Plan definitions
 const plans = {
-  starter: { name: "Starter", price: 97, color: "border-blue-500/50 bg-blue-500/10 text-blue-400" },
-  professional: { name: "Professional", price: 197, color: "border-cyan-500/50 bg-cyan-500/10 text-cyan-400" },
-  enterprise: { name: "Enterprise", price: 397, color: "border-emerald-500/50 bg-emerald-500/10 text-emerald-400" },
+  starter: { name: "Starter", price: 997, color: "border-blue-500/50 bg-blue-500/10 text-blue-400" },
+  professional: { name: "Professional", price: 1497, color: "border-cyan-500/50 bg-cyan-500/10 text-cyan-400" },
+  enterprise: { name: "Enterprise", price: 2997, color: "border-emerald-500/50 bg-emerald-500/10 text-emerald-400" },
 }
 
 // Force dynamic rendering due to useSearchParams

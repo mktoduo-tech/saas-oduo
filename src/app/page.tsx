@@ -129,13 +129,10 @@ export default function LandingPage() {
 
             {/* Navigation */}
             <nav className="relative z-50 border-b border-white/10 bg-black/20 backdrop-blur-xl">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center font-bold text-white">
-                            O
-                        </div>
-                        <span className="font-bold text-xl tracking-tight">SaaS Oduo</span>
-                    </div>
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 flex items-center justify-between">
+                    <Link href="/" className="flex items-center">
+                        <img src="/logo.svg" alt="ODuoLoc" className="h-20 w-auto" />
+                    </Link>
                     <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
                         <Link href="#features" className="hover:text-white transition-colors">Recursos</Link>
                         <Link href="#pricing" className="hover:text-white transition-colors">Preços</Link>
@@ -205,7 +202,7 @@ export default function LandingPage() {
             <section id="why" className="relative z-10 py-24">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl sm:text-4xl font-bold mb-4">Por que escolher a Oduo Locação?</h2>
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-4">Por que escolher a ODuoLoc?</h2>
                         <p className="text-gray-400 max-w-2xl mx-auto text-lg">
                             Mais de 500 locadoras confiam em nossa plataforma para gerenciar seus negócios
                         </p>
@@ -264,16 +261,21 @@ export default function LandingPage() {
                         <div className="p-8 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-300 flex flex-col">
                             <div className="mb-6">
                                 <h3 className="text-2xl font-bold text-white mb-2">Starter</h3>
-                                <p className="text-gray-400 text-sm">Para locadoras iniciantes</p>
+                                <p className="text-gray-400 text-sm">Ideal para quem está começando</p>
                             </div>
                             <div className="mb-6">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-bold text-white">R$ 97</span>
+                                    <span className="text-4xl font-bold text-white">R$ 997</span>
                                     <span className="text-gray-400">/mês</span>
                                 </div>
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
-                                {["Até 50 equipamentos", "100 reservas/mês", "1 usuário", "Suporte por email", "Relatórios básicos"].map((feature, i) => (
+                                {[
+                                    "Até 2 usuários",
+                                    "Até 50 equipamentos",
+                                    "200 reservas/mês",
+                                    "5GB de armazenamento"
+                                ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
                                         {feature}
@@ -282,7 +284,7 @@ export default function LandingPage() {
                             </ul>
                             <Link href="/planos" className="w-full">
                                 <Button variant="outline" className="w-full border-white/20 bg-white/5 hover:bg-white/10 text-white">
-                                    Começar Agora
+                                    Selecionar Plano <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
                             </Link>
                         </div>
@@ -296,16 +298,21 @@ export default function LandingPage() {
                             </div>
                             <div className="mb-6">
                                 <h3 className="text-2xl font-bold text-white mb-2">Professional</h3>
-                                <p className="text-gray-300 text-sm">Para locadoras em crescimento</p>
+                                <p className="text-gray-300 text-sm">Para empresas em crescimento</p>
                             </div>
                             <div className="mb-6">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-bold text-white">R$ 197</span>
+                                    <span className="text-4xl font-bold text-white">R$ 1.497</span>
                                     <span className="text-gray-300">/mês</span>
                                 </div>
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
-                                {["Até 200 equipamentos", "Reservas ilimitadas", "5 usuários", "Suporte prioritário", "Relatórios avançados", "API de integração"].map((feature, i) => (
+                                {[
+                                    "Até 5 usuários",
+                                    "Até 200 equipamentos",
+                                    "1000 reservas/mês",
+                                    "20GB de armazenamento"
+                                ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-white">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
                                         {feature}
@@ -314,7 +321,7 @@ export default function LandingPage() {
                             </ul>
                             <Link href="/planos" className="w-full">
                                 <Button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white border-0">
-                                    Começar Agora
+                                    Selecionar Plano <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
                             </Link>
                         </div>
@@ -323,16 +330,21 @@ export default function LandingPage() {
                         <div className="p-8 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-300 flex flex-col">
                             <div className="mb-6">
                                 <h3 className="text-2xl font-bold text-white mb-2">Enterprise</h3>
-                                <p className="text-gray-400 text-sm">Para grandes operações</p>
+                                <p className="text-gray-400 text-sm">Solução completa para grandes operações</p>
                             </div>
                             <div className="mb-6">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-bold text-white">R$ 397</span>
+                                    <span className="text-4xl font-bold text-white">R$ 2.997</span>
                                     <span className="text-gray-400">/mês</span>
                                 </div>
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
-                                {["Equipamentos ilimitados", "Reservas ilimitadas", "Usuários ilimitados", "Suporte 24/7", "Gerente dedicado", "Personalização completa"].map((feature, i) => (
+                                {[
+                                    "Até 10 usuários",
+                                    "Equipamentos ilimitados",
+                                    "Reservas ilimitadas",
+                                    "500GB de armazenamento"
+                                ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
                                         {feature}
@@ -341,13 +353,25 @@ export default function LandingPage() {
                             </ul>
                             <Link href="/planos" className="w-full">
                                 <Button variant="outline" className="w-full border-white/20 bg-white/5 hover:bg-white/10 text-white">
-                                    Começar Agora
+                                    Selecionar Plano <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
                             </Link>
                         </div>
                     </div>
 
-                    <div className="mt-12 text-center">
+                    {/* Precisa de mais? */}
+                    <div className="mt-12 text-center p-8 rounded-2xl border border-white/10 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 max-w-2xl mx-auto">
+                        <h3 className="text-xl font-bold text-white mb-2">Precisa de mais?</h3>
+                        <p className="text-gray-400 mb-4">
+                            Temos soluções personalizadas para operações de grande escala.
+                        </p>
+                        <a href="mailto:contato@oduoloc.com.br" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors font-medium">
+                            Fale com nosso time de vendas
+                            <ArrowRight className="h-4 w-4" />
+                        </a>
+                    </div>
+
+                    <div className="mt-8 text-center">
                         <p className="text-sm text-gray-500">
                             14 dias grátis • Sem cartão necessário • Cancele a qualquer momento
                         </p>
@@ -362,7 +386,7 @@ export default function LandingPage() {
                     <div className="relative z-10">
                         <h2 className="text-3xl sm:text-4xl font-bold mb-6">Pronto para transformar sua gestão?</h2>
                         <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">
-                            Junte-se a centenas de locadoras que já modernizaram seus processos com o SaaS Oduo.
+                            Junte-se a centenas de locadoras que já modernizaram seus processos com a ODuoLoc.
                         </p>
                         <Link href="/planos">
                             <Button size="lg" className="h-14 px-8 text-lg bg-white text-black hover:bg-gray-200 border-0 shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)]">
@@ -379,12 +403,9 @@ export default function LandingPage() {
             {/* Footer */}
             <footer className="relative z-10 border-t border-white/10 bg-black/40 py-12">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center text-xs font-bold text-white">
-                            O
-                        </div>
-                        <span className="font-semibold text-gray-300">SaaS Oduo</span>
-                    </div>
+                    <Link href="/" className="flex items-center">
+                        <img src="/logo.svg" alt="ODuoLoc" className="h-20 w-auto" />
+                    </Link>
                     <div className="text-sm text-gray-500">
                         &copy; 2025 ODuo Assessoria. Todos os direitos reservados.
                     </div>

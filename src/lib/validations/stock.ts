@@ -46,7 +46,7 @@ export type AvailabilityCheckInput = z.infer<typeof availabilityCheckSchema>
 export const bookingItemSchema = z.object({
   equipmentId: z.string().min(1, "Equipamento é obrigatório"),
   quantity: z.number().int().positive("Quantidade deve ser maior que zero"),
-  unitPrice: z.number().positive("Preço unitário deve ser maior que zero"),
+  unitPrice: z.number().positive("Preço unitário deve ser maior que zero").optional(),
   notes: z.string().optional(),
 })
 

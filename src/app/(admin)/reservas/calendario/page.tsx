@@ -237,6 +237,61 @@ export default function CalendarioPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <style jsx global>{`
+            /* Destaque para o dia atual no react-big-calendar */
+            .rbc-today {
+              background-color: hsl(var(--primary) / 0.15) !important;
+            }
+
+            .rbc-today .rbc-button-link {
+              color: hsl(var(--primary)) !important;
+              font-weight: 700 !important;
+            }
+
+            .rbc-day-bg.rbc-today {
+              border: 2px solid hsl(var(--primary)) !important;
+              border-radius: 4px;
+            }
+
+            /* Número do dia atual em destaque */
+            .rbc-date-cell.rbc-now .rbc-button-link {
+              background: hsl(var(--primary)) !important;
+              color: white !important;
+              border-radius: 50%;
+              width: 28px;
+              height: 28px;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              font-weight: 700;
+            }
+
+            /* Melhorar visual geral */
+            .rbc-header {
+              padding: 10px 4px;
+              font-weight: 600;
+              color: hsl(var(--muted-foreground));
+              text-transform: uppercase;
+              font-size: 0.75rem;
+            }
+
+            .rbc-off-range-bg {
+              background-color: hsl(var(--muted) / 0.3);
+            }
+
+            .rbc-date-cell {
+              padding: 4px 8px;
+            }
+
+            .rbc-toolbar button {
+              border-radius: 6px;
+            }
+
+            .rbc-toolbar button.rbc-active {
+              background-color: hsl(var(--primary));
+              border-color: hsl(var(--primary));
+            }
+          `}</style>
           <div style={{ height: "700px" }}>
             <Calendar
               localizer={localizer}
