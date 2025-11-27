@@ -55,6 +55,20 @@ export class NfseService {
       throw new InvoiceNotFoundError(bookingId)
     }
 
+    console.log('[NFS-e] Dados da reserva:', {
+      bookingId: booking.id,
+      customerName: booking.customer.name,
+      customerCpfCnpj: booking.customer.cpfCnpj,
+      itemsCount: booking.items.length,
+    })
+
+    console.log('[NFS-e] Dados fiscais do tenant:', {
+      cnpj: tenant.cnpj,
+      inscricaoMunicipal: tenant.inscricaoMunicipal,
+      codigoMunicipio: tenant.codigoMunicipio,
+      hasFocusToken: !!tenant.fiscalConfig?.focusNfeToken,
+    })
+
     // 3. Validar dados do cliente
     this.validateTomadorData(booking.customer)
 
@@ -63,6 +77,7 @@ export class NfseService {
 
     // 5. Construir payload
     const payload = this.buildNfsePayload(booking, tenant)
+    console.log('[NFS-e] Payload construído:', JSON.stringify(payload, null, 2))
 
     // 6. Criar registro no banco
     const invoice = await prisma.invoice.create({
@@ -356,6 +371,46 @@ export class NfseService {
     )
   }
 
+  /**
+   * Retorna a data/hora atual no timezone de São Paulo
+   * Subtrai 15 minutos para garantir que não seja rejeitada como "futura"
+   */
+  private getCurrentDateTimeBrazil(): string {
+    const now = new Date()
+
+    console.log('[NFS-e] ========== DEBUG DATA EMISSÃO ==========')
+    console.log('[NFS-e] Hora atual do servidor (UTC):', now.toISOString())
+    console.log('[NFS-e] Hora atual do servidor (local):', now.toString())
+    console.log('[NFS-e] Timezone offset do servidor (minutos):', now.getTimezoneOffset())
+
+    // Subtrai 15 minutos para garantir margem de segurança maior
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000)
+    console.log('[NFS-e] Hora atual - 15 min (UTC):', fifteenMinutesAgo.toISOString())
+
+    // Obtém o offset do Brasil (-3 horas = -180 minutos)
+    const brazilOffset = -3 * 60 // UTC-3
+    const utcTime = fifteenMinutesAgo.getTime() + (fifteenMinutesAgo.getTimezoneOffset() * 60000)
+    const brazilTime = new Date(utcTime + (brazilOffset * 60000))
+
+    console.log('[NFS-e] Hora convertida para Brasil:', brazilTime.toISOString())
+
+    // Formata manualmente para garantir formato correto
+    const year = brazilTime.getUTCFullYear()
+    const month = String(brazilTime.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(brazilTime.getUTCDate()).padStart(2, '0')
+    const hours = String(brazilTime.getUTCHours()).padStart(2, '0')
+    const minutes = String(brazilTime.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(brazilTime.getUTCSeconds()).padStart(2, '0')
+
+    // Retorna no formato ISO 8601 SEM timezone ou milissegundos
+    const result = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+
+    console.log('[NFS-e] Data FINAL que será enviada:', result)
+    console.log('[NFS-e] ========================================')
+
+    return result
+  }
+
   private buildNfsePayload(
     booking: NonNullable<Awaited<ReturnType<typeof this.getBookingData>>>,
     tenant: NonNullable<Awaited<ReturnType<typeof this.getTenantFiscalData>>>
@@ -383,6 +438,10 @@ export class NfseService {
 
     // Montar payload
     const payload: NfsePayload = {
+      data_emissao: this.getCurrentDateTimeBrazil(),
+      natureza_operacao: 1, // 1 = Tributação no município
+      optante_simples_nacional: false, // TODO: Adicionar campo na config fiscal
+      regime_especial_tributacao: 6, // 6 = Nenhum
       prestador: {
         cnpj: onlyNumbers(tenant.cnpj!),
         inscricao_municipal: onlyNumbers(tenant.inscricaoMunicipal!),
@@ -425,10 +484,45 @@ export class NfseService {
 
     // Adicionar código do serviço se configurado
     if (tenant.fiscalConfig?.codigoServico) {
-      payload.servico.codigo_tributario_municipio = tenant.fiscalConfig.codigoServico
+      payload.servico.item_lista_servico = this.normalizeServiceCode(tenant.fiscalConfig.codigoServico)
     }
 
     return payload
+  }
+
+  /**
+   * Normaliza o código de serviço para o formato do Sistema Nacional NFS-e (6 dígitos)
+   *
+   * Mapeamentos especiais:
+   * - "17.05" -> "990401" (Locação de bens móveis - Nota Técnica 005/2025)
+   * - "99.04.01" -> "990401"
+   *
+   * Outros códigos são normalizados removendo caracteres não numéricos
+   */
+  private normalizeServiceCode(code: string): string {
+    // Mapeamento de códigos LC 116/2003 para Sistema Nacional NFS-e
+    const codeMapping: Record<string, string> = {
+      '17.05': '990401', // Locação de bens móveis (Nota Técnica 005/2025)
+      '99.04.01': '990401', // Já no formato correto
+    }
+
+    // Remove espaços
+    const cleanCode = code.trim()
+
+    // Verifica se existe mapeamento específico
+    if (codeMapping[cleanCode]) {
+      console.log(`[NFS-e] Código ${cleanCode} mapeado para ${codeMapping[cleanCode]}`)
+      return codeMapping[cleanCode]
+    }
+
+    // Se não tem mapeamento, tenta normalizar
+    const numericOnly = cleanCode.replace(/\D/g, '')
+
+    // Garante que tenha 6 dígitos, preenchendo com zeros à direita se necessário
+    const normalized = numericOnly.padEnd(6, '0').substring(0, 6)
+
+    console.log(`[NFS-e] Código ${cleanCode} normalizado para ${normalized}`)
+    return normalized
   }
 
   private mapFocusStatus(focusStatus: string): InvoiceStatus {
