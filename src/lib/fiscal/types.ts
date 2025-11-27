@@ -50,6 +50,7 @@ export interface NfsePayload {
   servico: {
     valor_servicos: number
     discriminacao: string
+    codigo_tributacao_nacional_iss?: string // Código de 6 dígitos do Sistema Nacional NFS-e
     item_lista_servico?: string
     codigo_tributario_municipio?: string
     aliquota: number

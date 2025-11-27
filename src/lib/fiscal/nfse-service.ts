@@ -96,11 +96,11 @@ export class NfseService {
         tomadorEmail: booking.customer.email || undefined,
         tomadorEndereco: booking.customer.address
           ? {
-              logradouro: booking.customer.address,
-              cidade: booking.customer.city,
-              uf: booking.customer.state,
-              cep: booking.customer.zipCode,
-            }
+            logradouro: booking.customer.address,
+            cidade: booking.customer.city,
+            uf: booking.customer.state,
+            cep: booking.customer.zipCode,
+          }
           : undefined,
         bookingId,
         tenantId,
@@ -440,8 +440,8 @@ export class NfseService {
     const payload: NfsePayload = {
       data_emissao: this.getCurrentDateTimeBrazil(),
       natureza_operacao: 1, // 1 = Tributação no município
-      optante_simples_nacional: false, // TODO: Adicionar campo na config fiscal
-      regime_especial_tributacao: 6, // 6 = Nenhum
+      optante_simples_nacional: true, // TODO: Adicionar campo na config fiscal
+      regime_especial_tributacao: 3, // 6 = Nenhum
       prestador: {
         cnpj: onlyNumbers(tenant.cnpj!),
         inscricao_municipal: onlyNumbers(tenant.inscricaoMunicipal!),
@@ -484,7 +484,9 @@ export class NfseService {
 
     // Adicionar código do serviço se configurado
     if (tenant.fiscalConfig?.codigoServico) {
-      payload.servico.item_lista_servico = this.normalizeServiceCode(tenant.fiscalConfig.codigoServico)
+      const normalizedCode = this.normalizeServiceCode(tenant.fiscalConfig.codigoServico)
+      payload.servico.codigo_tributacao_nacional_iss = normalizedCode
+      console.log(`[NFS-e] Código de tributação nacional: ${normalizedCode}`)
     }
 
     return payload
