@@ -470,15 +470,23 @@ export class NfseService {
       }
     }
 
-    // Adicionar endereço se disponível
-    if (booking.customer.address && booking.customer.city && booking.customer.state) {
+    // Adicionar endereço do tomador
+    // IMPORTANTE: Endereço é OBRIGATÓRIO quando ISS é retido (erro E0237)
+    const issRetido = tenant.fiscalConfig?.issRetido || false
+    const hasAddress = booking.customer.address && booking.customer.city && booking.customer.state
+
+    if (hasAddress || issRetido) {
       payload.tomador.endereco = {
-        logradouro: booking.customer.address,
+        logradouro: booking.customer.address || 'Não informado',
         numero: 'S/N', // Número não separado no modelo atual
         bairro: 'Centro', // Bairro não disponível no modelo atual
-        codigo_municipio: tenant.codigoMunicipio!, // Usar do tenant por enquanto
-        uf: booking.customer.state,
-        cep: onlyNumbers(booking.customer.zipCode || ''),
+        codigo_municipio: tenant.codigoMunicipio!, // Código do município do prestador
+        uf: booking.customer.state || 'SP', // Estado padrão se não informado
+        cep: onlyNumbers(booking.customer.zipCode || '00000000'),
+      }
+
+      if (issRetido && !hasAddress) {
+        console.log('[NFS-e] ⚠️  ISS retido mas endereço do cliente incompleto. Usando valores padrão.')
       }
     }
 
