@@ -77,20 +77,68 @@ export class FocusNfeClient {
   }
 
   /**
-   * Emite uma NFS-e
+   * Emite uma NFS-e Municipal (sistema antigo)
    * @param ref - Referência única (gerada internamente)
    * @param payload - Dados da NFS-e
    */
-  async emitirNfse(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
+  async emitirNfseMunicipal(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
     return this.request<FocusNfeResponse>('POST', `/nfse?ref=${ref}`, payload)
   }
 
   /**
-   * Consulta o status de uma NFS-e
+   * Emite uma NFS-e Nacional (Sistema Nacional NFS-e)
+   * Usar para códigos como 990401 (Locação de Bens Móveis)
+   * @param ref - Referência única (gerada internamente)
+   * @param payload - Dados da NFS-e
+   */
+  async emitirNfseNacional(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
+    return this.request<FocusNfeResponse>('POST', `/nfsen?ref=${ref}`, payload)
+  }
+
+  /**
+   * Emite uma NFS-e (detecta automaticamente se é Municipal ou Nacional)
+   * @param ref - Referência única (gerada internamente)
+   * @param payload - Dados da NFS-e
+   */
+  async emitirNfse(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
+    // Códigos do Sistema Nacional NFS-e começam com 99
+    const codigoNacional = payload.servico.codigo_tributacao_nacional_iss
+    const isNacional = codigoNacional?.startsWith('99')
+
+    console.log(`[Focus NFe] Usando endpoint: ${isNacional ? '/nfsen (Nacional)' : '/nfse (Municipal)'}`)
+
+    return isNacional
+      ? this.emitirNfseNacional(ref, payload)
+      : this.emitirNfseMunicipal(ref, payload)
+  }
+
+  /**
+   * Consulta o status de uma NFS-e Municipal
+   * @param ref - Referência da NFS-e
+   */
+  async consultarNfseMunicipal(ref: string): Promise<FocusNfeResponse> {
+    return this.request<FocusNfeResponse>('GET', `/nfse/${ref}`)
+  }
+
+  /**
+   * Consulta o status de uma NFS-e Nacional
+   * @param ref - Referência da NFS-e
+   */
+  async consultarNfseNacional(ref: string): Promise<FocusNfeResponse> {
+    return this.request<FocusNfeResponse>('GET', `/nfsen/${ref}`)
+  }
+
+  /**
+   * Consulta o status de uma NFS-e (tenta ambos os endpoints)
    * @param ref - Referência da NFS-e
    */
   async consultarNfse(ref: string): Promise<FocusNfeResponse> {
-    return this.request<FocusNfeResponse>('GET', `/nfse/${ref}`)
+    // Tenta primeiro o endpoint nacional, depois o municipal
+    try {
+      return await this.consultarNfseNacional(ref)
+    } catch (error) {
+      return await this.consultarNfseMunicipal(ref)
+    }
   }
 
   /**
