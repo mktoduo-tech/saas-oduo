@@ -89,9 +89,9 @@ export class FocusNfeClient {
    * Emite uma NFS-e Nacional (Sistema Nacional NFS-e)
    * Usar para códigos como 990401 (Locação de Bens Móveis)
    * @param ref - Referência única (gerada internamente)
-   * @param payload - Dados da NFS-e
+   * @param payload - Dados da NFS-e Nacional
    */
-  async emitirNfseNacional(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
+  async emitirNfseNacional(ref: string, payload: NfsePayload | any): Promise<FocusNfeResponse> {
     return this.request<FocusNfeResponse>('POST', `/nfsen?ref=${ref}`, payload)
   }
 
@@ -107,9 +107,54 @@ export class FocusNfeClient {
 
     console.log(`[Focus NFe] Usando endpoint: ${isNacional ? '/nfsen (Nacional)' : '/nfse (Municipal)'}`)
 
-    return isNacional
-      ? this.emitirNfseNacional(ref, payload)
-      : this.emitirNfseMunicipal(ref, payload)
+    if (isNacional) {
+      // Converter payload para formato Nacional
+      const payloadNacional = this.convertToNacionalPayload(payload)
+      return this.emitirNfseNacional(ref, payloadNacional)
+    } else {
+      return this.emitirNfseMunicipal(ref, payload)
+    }
+  }
+
+  /**
+   * Converte payload Municipal para Nacional
+   */
+  private convertToNacionalPayload(payload: NfsePayload): any {
+    const dataEmissao = new Date(payload.data_emissao)
+    const dataCompetencia = dataEmissao.toISOString().split('T')[0] // YYYY-MM-DD
+
+    return {
+      data_emissao: payload.data_emissao,
+      data_competencia: dataCompetencia,
+      codigo_municipio_emissora: payload.prestador.codigo_municipio,
+
+      // Prestador
+      cnpj_prestador: payload.prestador.cnpj,
+      inscricao_municipal_prestador: payload.prestador.inscricao_municipal,
+      codigo_opcao_simples_nacional: payload.optante_simples_nacional ? 1 : 2,
+      regime_especial_tributacao: payload.regime_especial_tributacao,
+
+      // Tomador
+      cnpj_tomador: payload.tomador.cnpj,
+      cpf_tomador: payload.tomador.cpf,
+      razao_social_tomador: payload.tomador.razao_social,
+      codigo_municipio_tomador: payload.tomador.endereco?.codigo_municipio,
+      cep_tomador: payload.tomador.endereco?.cep,
+      logradouro_tomador: payload.tomador.endereco?.logradouro,
+      numero_tomador: payload.tomador.endereco?.numero,
+      complemento_tomador: payload.tomador.endereco?.complemento,
+      bairro_tomador: payload.tomador.endereco?.bairro,
+      telefone_tomador: payload.tomador.telefone,
+      email_tomador: payload.tomador.email,
+
+      // Serviço
+      codigo_municipio_prestacao: payload.prestador.codigo_municipio,
+      codigo_tributacao_nacional_iss: payload.servico.codigo_tributacao_nacional_iss,
+      descricao_servico: payload.servico.discriminacao,
+      valor_servico: payload.servico.valor_servicos,
+      tributacao_iss: 1, // 1 = Tributável
+      tipo_retencao_iss: payload.servico.iss_retido ? 1 : 2, // 1 = Retido, 2 = Não retido
+    }
   }
 
   /**

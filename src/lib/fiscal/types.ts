@@ -17,7 +17,7 @@ export type RegimeTributario =
   | 'LUCRO_REAL'
   | 'MEI'
 
-// Payload para emissão de NFS-e no Focus NFe
+// Payload para emissão de NFS-e Municipal (sistema antigo)
 export interface NfsePayload {
   data_emissao: string // ISO 8601
   natureza_operacao: number // 1 = Tributação no município
@@ -58,6 +58,41 @@ export interface NfsePayload {
     valor_iss?: number
     valor_deducoes?: number
   }
+}
+
+// Payload para emissão de NFS-e Nacional (novo sistema)
+export interface NfseNacionalPayload {
+  data_emissao: string // ISO 8601
+  data_competencia?: string // YYYY-MM-DD
+  codigo_municipio_emissora: string // Código IBGE 7 dígitos
+
+  // Prestador (campos diferentes da NFSe municipal)
+  cnpj_prestador?: string
+  cpf_prestador?: string
+  inscricao_municipal_prestador: string
+  codigo_opcao_simples_nacional?: number // 1=Sim, 2=Não
+  regime_especial_tributacao?: number
+
+  // Tomador
+  cnpj_tomador?: string
+  cpf_tomador?: string
+  razao_social_tomador: string
+  codigo_municipio_tomador?: string
+  cep_tomador?: string
+  logradouro_tomador?: string
+  numero_tomador?: string
+  complemento_tomador?: string
+  bairro_tomador?: string
+  telefone_tomador?: string
+  email_tomador?: string
+
+  // Serviço
+  codigo_municipio_prestacao: string
+  codigo_tributacao_nacional_iss: string
+  descricao_servico: string
+  valor_servico: number
+  tributacao_iss?: number // 1=Tributável, 2=Não tributável, etc
+  tipo_retencao_iss?: number // 1=Retido, 2=Não retido
 }
 
 // Resposta do Focus NFe
