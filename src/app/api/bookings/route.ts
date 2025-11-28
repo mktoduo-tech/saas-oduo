@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       include: {
         equipment: true,
         customer: true,
+        customerSite: true,
         items: {
           include: {
             equipment: {
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
 // Schema para criação de reserva com itens
 const createBookingSchema = z.object({
   customerId: z.string().min(1, "Cliente é obrigatório"),
+  customerSiteId: z.string().optional().nullable(),
   startDate: z.string().min(1, "Data de início é obrigatória"),
   endDate: z.string().min(1, "Data de fim é obrigatória"),
   startTime: z.string().optional(),
@@ -110,6 +112,7 @@ export async function POST(request: NextRequest) {
 
     const {
       customerId,
+      customerSiteId,
       startDate,
       endDate,
       startTime,
@@ -276,6 +279,7 @@ export async function POST(request: NextRequest) {
       const newBooking = await tx.booking.create({
         data: {
           customerId,
+          customerSiteId: customerSiteId || null,
           tenantId: session.user.tenantId,
           startDate: start,
           endDate: end,
@@ -336,6 +340,7 @@ export async function POST(request: NextRequest) {
         include: {
           equipment: true,
           customer: true,
+          customerSite: true,
           items: {
             include: {
               equipment: {

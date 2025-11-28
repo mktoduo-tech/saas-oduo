@@ -81,9 +81,9 @@ const statusColors = {
 
 const statusLabels = {
   PENDING: "Pendente",
-  CONFIRMED: "Confirmada",
-  CANCELLED: "Cancelada",
-  COMPLETED: "Concluída",
+  CONFIRMED: "Confirmado",
+  CANCELLED: "Cancelado",
+  COMPLETED: "Concluído",
 }
 
 export default function ReservasPage() {
@@ -253,15 +253,15 @@ export default function ReservasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground font-headline tracking-wide">Reservas</h1>
+          <h1 className="text-3xl font-bold text-foreground font-headline tracking-wide">Orçamentos</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie todas as reservas de equipamentos
+            Gerencie todos os orçamentos de locação
           </p>
         </div>
         <Link href="/reservas/novo">
           <Button className="gap-2" disabled={isAtBookingLimit}>
             <Plus className="h-4 w-4" />
-            Nova Reserva
+            Novo Orçamento
           </Button>
         </Link>
       </div>
@@ -280,7 +280,7 @@ export default function ReservasPage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline tracking-wide">Filtros</CardTitle>
-          <CardDescription>Filtre as reservas por status</CardDescription>
+          <CardDescription>Filtre os orçamentos por status</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-4">
@@ -306,7 +306,7 @@ export default function ReservasPage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline tracking-wide">
-            {loading ? "Carregando..." : `${bookings.length} reservas`}
+            {loading ? "Carregando..." : `${bookings.length} orçamentos`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -332,11 +332,11 @@ export default function ReservasPage() {
                 ) : paginatedBookings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      Nenhuma reserva encontrada.
+                      Nenhum orçamento encontrado.
                       <br />
                       <Link href="/reservas/novo">
                         <Button variant="link" className="mt-2">
-                          Criar primeira reserva
+                          Criar primeiro orçamento
                         </Button>
                       </Link>
                     </TableCell>
@@ -494,7 +494,7 @@ export default function ReservasPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta reserva? Esta ação não pode
+              Tem certeza que deseja excluir este orçamento? Esta ação não pode
               ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>

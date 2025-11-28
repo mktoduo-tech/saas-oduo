@@ -19,6 +19,7 @@ import { ArrowLeft, Save, Loader2 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { CustomerSitesList } from "@/components/customers/customer-sites-list"
 
 const customerSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -175,7 +176,7 @@ export default function EditClientePage({
           </p>
         </div>
         <Badge variant="secondary">
-          {customer.bookings?.length || 0} reservas
+          {customer.bookings?.length || 0} orçamentos
         </Badge>
       </div>
 
@@ -326,13 +327,16 @@ export default function EditClientePage({
           </CardContent>
         </Card>
 
-        {/* Histórico de Reservas */}
+        {/* Locais de Obra */}
+        <CustomerSitesList customerId={id} />
+
+        {/* Histórico de Orçamentos */}
         {customer.bookings && customer.bookings.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline tracking-wide">Histórico de Reservas</CardTitle>
+              <CardTitle className="font-headline tracking-wide">Histórico de Orçamentos</CardTitle>
               <CardDescription>
-                Últimas reservas deste cliente
+                Últimos orçamentos deste cliente
               </CardDescription>
             </CardHeader>
             <CardContent>

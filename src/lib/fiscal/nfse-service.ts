@@ -75,11 +75,21 @@ export class NfseService {
     // 4. Gerar referência única
     const internalRef = `nfse-${nanoid(12)}`
 
-    // 5. Construir payload
-    const payload = this.buildNfsePayload(booking, tenant)
+    // 5. Detectar se município usa Sistema Nacional
+    const usaNacional = this.isMunicipioNacional(tenant.codigoMunicipio!)
+    console.log(`[NFS-e] Sistema detectado: ${usaNacional ? 'NACIONAL' : 'MUNICIPAL'}`)
+
+    // 6. Construir payload no formato correto
+    const payload = usaNacional
+      ? this.buildNacionalPayload(booking, tenant)
+      : this.buildNfsePayload(booking, tenant)
     console.log('[NFS-e] Payload construído:', JSON.stringify(payload, null, 2))
 
-    // 6. Criar registro no banco
+    // 7. Criar registro no banco
+    const descricaoServico = usaNacional
+      ? payload.descricao_servico
+      : payload.servico.discriminacao
+
     const invoice = await prisma.invoice.create({
       data: {
         internalRef,
@@ -89,7 +99,7 @@ export class NfseService {
         aliquotaIss: tenant.fiscalConfig?.aliquotaIss || 0,
         valorIss: booking.totalPrice * ((tenant.fiscalConfig?.aliquotaIss || 0) / 100),
         issRetido: tenant.fiscalConfig?.issRetido || false,
-        descricaoServico: payload.servico.discriminacao,
+        descricaoServico,
         codigoServico: tenant.fiscalConfig?.codigoServico || undefined,
         tomadorNome: booking.customer.name,
         tomadorCpfCnpj: booking.customer.cpfCnpj || undefined,
@@ -415,6 +425,8 @@ export class NfseService {
     booking: NonNullable<Awaited<ReturnType<typeof this.getBookingData>>>,
     tenant: NonNullable<Awaited<ReturnType<typeof this.getTenantFiscalData>>>
   ): NfsePayload {
+    console.log('[NFS-e] ========== CONSTRUINDO PAYLOAD ==========')
+
     // Construir descrição do serviço usando template
     const template = tenant.fiscalConfig?.descricaoTemplate || DEFAULT_DESCRIPTION_TEMPLATE
 
@@ -436,12 +448,61 @@ export class NfseService {
 
     const discriminacao = processTemplate(template, variables)
 
+    // Validar dados obrigatórios do cliente
+    const issRetido = tenant.fiscalConfig?.issRetido || false
+    const hasCpfCnpj = !!booking.customer.cpfCnpj
+    const hasAddress = !!(booking.customer.address && booking.customer.city && booking.customer.state)
+
+    console.log('[NFS-e] Validação de dados do cliente:', {
+      name: booking.customer.name,
+      hasCpfCnpj,
+      hasAddress,
+      issRetido,
+      addressData: {
+        address: booking.customer.address,
+        city: booking.customer.city,
+        state: booking.customer.state,
+        zipCode: booking.customer.zipCode,
+      }
+    })
+
+    // VALIDAÇÃO: CPF/CNPJ é obrigatório para tomador
+    if (!hasCpfCnpj || !booking.customer.cpfCnpj) {
+      console.error('[NFS-e] ❌ ERRO: CPF/CNPJ do tomador não informado (obrigatório)')
+      throw new TomadorDataError(
+        'CPF ou CNPJ do tomador é obrigatório para emissão de NFS-e',
+        ['cpfCnpj']
+      )
+    }
+
+    // Detectar se é CNPJ (14 dígitos) para validações adicionais
+    const doc = onlyNumbers(booking.customer.cpfCnpj)
+    const isCnpj = doc.length === 14
+
+    // VALIDAÇÃO: Endereço é obrigatório quando ISS retido
+    if (issRetido && !hasAddress) {
+      console.error('[NFS-e] ❌ ERRO: ISS retido mas endereço do tomador não informado')
+      throw new TomadorDataError(
+        'Endereço do tomador é obrigatório quando ISS é retido',
+        ['address', 'city', 'state', 'zipCode']
+      )
+    }
+
+    // VALIDAÇÃO: Endereço é obrigatório para tomador com CNPJ
+    if (isCnpj && !hasAddress) {
+      console.error('[NFS-e] ❌ ERRO: Tomador com CNPJ mas endereço não informado')
+      throw new TomadorDataError(
+        'Endereço do tomador é obrigatório quando o tomador possui CNPJ',
+        ['address', 'city', 'state', 'zipCode']
+      )
+    }
+
     // Montar payload
     const payload: NfsePayload = {
       data_emissao: this.getCurrentDateTimeBrazil(),
       natureza_operacao: 1, // 1 = Tributação no município
       optante_simples_nacional: true, // TODO: Adicionar campo na config fiscal
-      regime_especial_tributacao: 3, // 6 = Nenhum
+      regime_especial_tributacao: 6, // 6 = Microempresa e Empresa de Pequeno Porte (ME/EPP)
       prestador: {
         cnpj: onlyNumbers(tenant.cnpj!),
         inscricao_municipal: onlyNumbers(tenant.inscricaoMunicipal!),
@@ -456,83 +517,359 @@ export class NfseService {
         valor_servicos: booking.totalPrice,
         discriminacao,
         aliquota: tenant.fiscalConfig?.aliquotaIss || 0,
-        iss_retido: tenant.fiscalConfig?.issRetido || false,
+        iss_retido: issRetido,
       },
     }
 
     // Adicionar CPF ou CNPJ do tomador
-    if (booking.customer.cpfCnpj) {
-      const doc = onlyNumbers(booking.customer.cpfCnpj)
-      if (doc.length === 11) {
-        payload.tomador.cpf = doc
-      } else if (doc.length === 14) {
-        payload.tomador.cnpj = doc
-      }
+    if (doc.length === 11) {
+      payload.tomador.cpf = doc
+      console.log('[NFS-e] Tomador tipo: PESSOA FÍSICA (CPF)')
+    } else if (doc.length === 14) {
+      payload.tomador.cnpj = doc
+      console.log('[NFS-e] Tomador tipo: PESSOA JURÍDICA (CNPJ)')
+    } else {
+      throw new TomadorDataError(
+        `CPF/CNPJ do tomador inválido: deve ter 11 (CPF) ou 14 (CNPJ) dígitos, recebido: ${doc.length}`,
+        ['cpfCnpj']
+      )
     }
 
     // Adicionar endereço do tomador
-    // IMPORTANTE: Endereço é OBRIGATÓRIO quando ISS é retido (erro E0237)
-    const issRetido = tenant.fiscalConfig?.issRetido || false
-    const hasAddress = booking.customer.address && booking.customer.city && booking.customer.state
+    // OBRIGATÓRIO quando:
+    // 1. ISS é retido
+    // 2. Tomador tem CNPJ
+    // 3. Dados de endereço estão disponíveis
+    if (hasAddress || issRetido || isCnpj) {
+      if (!hasAddress) {
+        // Se chegou aqui, é porque a validação acima já lançou erro
+        // Mas por segurança, garantir que não vamos enviar valores vazios
+        throw new TomadorDataError(
+          'Endereço do tomador incompleto',
+          ['address', 'city', 'state', 'zipCode']
+        )
+      }
 
-    if (hasAddress || issRetido) {
       payload.tomador.endereco = {
-        logradouro: booking.customer.address || 'Não informado',
+        logradouro: booking.customer.address!,
         numero: 'S/N', // Número não separado no modelo atual
         bairro: 'Centro', // Bairro não disponível no modelo atual
         codigo_municipio: tenant.codigoMunicipio!, // Código do município do prestador
-        uf: booking.customer.state || 'SP', // Estado padrão se não informado
-        cep: onlyNumbers(booking.customer.zipCode || '00000000'),
+        uf: booking.customer.state!,
+        cep: onlyNumbers(booking.customer.zipCode!).padStart(8, '0'),
       }
 
-      if (issRetido && !hasAddress) {
-        console.log('[NFS-e] ⚠️  ISS retido mas endereço do cliente incompleto. Usando valores padrão.')
-      }
+      console.log('[NFS-e] ✅ Endereço do tomador adicionado:', payload.tomador.endereco)
     }
 
     // Adicionar código do serviço se configurado
     if (tenant.fiscalConfig?.codigoServico) {
-      const normalizedCode = this.normalizeServiceCode(tenant.fiscalConfig.codigoServico)
-      payload.servico.codigo_tributacao_nacional_iss = normalizedCode
-      console.log(`[NFS-e] Código de tributação nacional: ${normalizedCode}`)
+      // Detectar se o município usa Sistema Nacional
+      const municipioUsaNacional = this.isMunicipioNacional(tenant.codigoMunicipio!)
+      const { isNacional, code } = this.normalizeServiceCode(
+        tenant.fiscalConfig.codigoServico,
+        municipioUsaNacional
+      )
+
+      if (isNacional) {
+        // Sistema Nacional NFS-e (códigos começando com 99)
+        payload.servico.codigo_tributacao_nacional_iss = code
+        console.log(`[NFS-e] Sistema NACIONAL - código_tributacao_nacional_iss: ${code}`)
+      } else {
+        // Sistema Municipal (LC 116/2003) - formato "XX.XX"
+        payload.servico.item_lista_servico = code
+        console.log(`[NFS-e] Sistema MUNICIPAL - item_lista_servico: ${code}`)
+      }
+    } else {
+      console.warn('[NFS-e] ⚠️  Código de serviço não configurado')
     }
+
+    console.log('[NFS-e] Payload final construído:', {
+      prestador: payload.prestador,
+      tomador: {
+        ...payload.tomador,
+        hasEndereco: !!payload.tomador.endereco
+      },
+      servico: {
+        valor: payload.servico.valor_servicos,
+        aliquota: payload.servico.aliquota,
+        iss_retido: payload.servico.iss_retido,
+        codigo: payload.servico.codigo_tributacao_nacional_iss
+      }
+    })
+    console.log('[NFS-e] ============================================')
 
     return payload
   }
 
   /**
-   * Normaliza o código de serviço para o formato do Sistema Nacional NFS-e (6 dígitos)
-   *
-   * Mapeamentos especiais:
-   * - "17.05" -> "990401" (Locação de bens móveis - Nota Técnica 005/2025)
-   * - "99.04.01" -> "990401"
-   *
-   * Outros códigos são normalizados removendo caracteres não numéricos
+   * Constrói o payload no formato NFSe Nacional (DPS)
+   * Usado para municípios que migraram para o Sistema Nacional
    */
-  private normalizeServiceCode(code: string): string {
+  private buildNacionalPayload(
+    booking: NonNullable<Awaited<ReturnType<typeof this.getBookingData>>>,
+    tenant: NonNullable<Awaited<ReturnType<typeof this.getTenantFiscalData>>>
+  ): any {
+    console.log('[NFS-e] ========== CONSTRUINDO PAYLOAD NACIONAL (DPS) ==========')
+
+    // Construir descrição do serviço
+    const template = tenant.fiscalConfig?.descricaoTemplate || DEFAULT_DESCRIPTION_TEMPLATE
+    const variables: TemplateVariables = {
+      bookingNumber: booking.bookingNumber,
+      startDate: formatDate(booking.startDate),
+      endDate: formatDate(booking.endDate),
+      totalDays: calculateDays(booking.startDate, booking.endDate),
+      customerName: booking.customer.name,
+      itemsList: formatItemsList(
+        booking.items.map(item => ({
+          equipmentName: item.equipment.name,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice,
+        }))
+      ),
+      totalPrice: formatCurrency(booking.totalPrice),
+    }
+    const descricao_servico = processTemplate(template, variables)
+
+    // Validar dados obrigatórios
+    if (!booking.customer.cpfCnpj) {
+      throw new TomadorDataError(
+        'CPF ou CNPJ do tomador é obrigatório para emissão de NFS-e',
+        ['cpfCnpj']
+      )
+    }
+
+    const doc = onlyNumbers(booking.customer.cpfCnpj)
+    const isCnpj = doc.length === 14
+
+    // Obter código de tributação nacional
+    const codigoServico = tenant.fiscalConfig?.codigoServico
+    if (!codigoServico) {
+      throw new FiscalConfigurationError('Código de serviço não configurado para emissão de NFS-e Nacional')
+    }
+
+    const { code: codigoNacional } = this.normalizeServiceCode(codigoServico, true)
+
+    if (!codigoNacional) {
+      throw new FiscalConfigurationError(`Não foi possível normalizar o código de serviço: ${codigoServico}`)
+    }
+
+    console.log('[NFS-e Nacional] Código de serviço normalizado:', codigoNacional)
+
+    // Gerar número DPS único baseado no timestamp (apenas números)
+    // Usar os últimos 15 dígitos do timestamp para garantir unicidade
+    const numeroDPS = Date.now().toString().slice(-15)
+
+    // Payload no formato DPS (NFSe Nacional)
+    const payload: any = {
+      // Dados da DPS
+      data_emissao: this.getCurrentDateTimeBrazil(),
+      data_competencia: booking.startDate.toISOString().split('T')[0], // YYYY-MM-DD (formato ISO: 2025-11-28)
+      serie_dps: '1',
+      numero_dps: numeroDPS, // Número sequencial único (apenas dígitos)
+      emitente_dps: 1, // 1 = Prestador
+
+      // Município emissor
+      codigo_municipio_emissora: tenant.codigoMunicipio!,
+
+      // Prestador
+      cnpj_prestador: onlyNumbers(tenant.cnpj!),
+
+      // Tomador
+      razao_social_tomador: booking.customer.name,
+      email_tomador: booking.customer.email || undefined,
+
+      // Município da prestação
+      codigo_municipio_prestacao: tenant.codigoMunicipio!,
+
+      // Serviço
+      codigo_tributacao_nacional_iss: codigoNacional,
+      descricao_servico,
+      valor_servico: booking.totalPrice,
+
+      // Simples Nacional
+      codigo_opcao_simples_nacional: 3, // 3 = ME/EPP
+      regime_especial_tributacao: 6, // 6 = Microempresa e Empresa de Pequeno Porte
+
+      // Tributação
+      tributacao_iss: 1, // 1 = Tributável
+
+      // Retenção de ISS
+      tipo_retencao_iss: tenant.fiscalConfig?.issRetido ? 2 : 1, // 1 = Não retido, 2 = Retido pelo tomador
+    }
+
+    // Adicionar CPF ou CNPJ do tomador
+    if (doc.length === 11) {
+      payload.cpf_tomador = doc
+      console.log('[NFS-e Nacional] Tomador tipo: PESSOA FÍSICA (CPF)')
+    } else if (doc.length === 14) {
+      payload.cnpj_tomador = doc
+      console.log('[NFS-e Nacional] Tomador tipo: PESSOA JURÍDICA (CNPJ)')
+    } else {
+      throw new TomadorDataError(
+        `CPF/CNPJ do tomador inválido: deve ter 11 (CPF) ou 14 (CNPJ) dígitos, recebido: ${doc.length}`,
+        ['cpfCnpj']
+      )
+    }
+
+    console.log('[NFS-e Nacional] Número DPS gerado:', numeroDPS, '(tipo:', typeof numeroDPS, ')')
+
+    // Adicionar endereço do tomador (obrigatório para CNPJ ou ISS retido)
+    const hasAddress = !!(booking.customer.address && booking.customer.city && booking.customer.state)
+    const issRetido = tenant.fiscalConfig?.issRetido || false
+
+    if (hasAddress && (isCnpj || issRetido)) {
+      payload.codigo_municipio_tomador = tenant.codigoMunicipio! // Código IBGE
+      payload.cep_tomador = onlyNumbers(booking.customer.zipCode || '').padStart(8, '0')
+      payload.logradouro_tomador = booking.customer.address!
+      payload.numero_tomador = 'S/N'
+      payload.bairro_tomador = 'Centro'
+      console.log('[NFS-e Nacional] ✅ Endereço do tomador adicionado')
+    }
+
+    // Adicionar alíquota se configurada
+    if (tenant.fiscalConfig?.aliquotaIss) {
+      payload.percentual_aliquota_relativa_municipio = tenant.fiscalConfig.aliquotaIss
+    }
+
+    console.log('[NFS-e Nacional] Payload DPS construído:', {
+      serie_dps: payload.serie_dps,
+      numero_dps: payload.numero_dps,
+      codigo_tributacao_nacional_iss: payload.codigo_tributacao_nacional_iss,
+      valor_servico: payload.valor_servico,
+      codigo_opcao_simples_nacional: payload.codigo_opcao_simples_nacional,
+    })
+    console.log('[NFS-e] ============================================')
+
+    return payload
+  }
+
+  /**
+   * Verifica se o município usa Sistema Nacional NFS-e
+   * Lista de municípios que já migraram para o Sistema Nacional
+   */
+  private isMunicipioNacional(codigoMunicipio: string): boolean {
+    // Municípios que já migraram para Sistema Nacional NFS-e
+    const municipiosNacionais = [
+      '3509502', // Campinas - SP (Nacional obrigatório a partir de 01/01/2026, pode testar em HOMOLOGACAO)
+      '3550308', // São Paulo - SP
+      '3304557', // Rio de Janeiro - RJ
+      '4106902', // Curitiba - PR
+      '3106200', // Belo Horizonte - MG
+      // Adicionar outros municípios conforme necessário
+    ]
+
+    const usaNacional = municipiosNacionais.includes(codigoMunicipio)
+
+    if (usaNacional) {
+      console.log(`[NFS-e] ⚠️  Município ${codigoMunicipio} usa Sistema Nacional NFS-e`)
+    }
+
+    return usaNacional
+  }
+
+  /**
+   * Normaliza o código de serviço e detecta se é Sistema Nacional ou Municipal
+   *
+   * Sistema Nacional (6 dígitos numéricos - códigos começando com 99):
+   * - Formato: 990101 (6 dígitos, sem pontos)
+   * - Campo: codigo_tributacao_nacional_iss
+   * - Exemplos: 990101 (Serviços sem incidência de ISSQN e ICMS)
+   *
+   * Sistema Municipal (LC 116/2003 - códigos NÃO começando com 99):
+   * - Formato: XXYYZZ (6 dígitos numéricos, sem pontos)
+   *   - XX = Item da LC 116/2003 (2 dígitos)
+   *   - YY = Subitem da LC 116/2003 (2 dígitos)
+   *   - ZZ = Desdobro Nacional (2 dígitos, geralmente "00")
+   * - Campo: item_lista_servico
+   * - Exemplos:
+   *   - "01.05" → 010500
+   *   - "17.05" → 170500
+   *   - "010501" → 010501 (já no formato correto)
+   *
+   * ⚠️ MAPEAMENTOS TEMPORÁRIOS (até NT 005/2025 ser implementada):
+   * - "17.05" -> "990101" (TEMPORÁRIO: deveria ser 990401 para Locação de bens móveis)
+   * - "01.05" -> "990101" (TEMPORÁRIO: deveria ser 990401 para Locação de bens móveis)
+   * - Código 990401 foi anunciado na NT 005 mas ainda não está disponível no sistema
+   * - Usando 990101 como workaround até a implementação oficial
+   *
+   * @param code - Código do serviço configurado
+   * @param forcaNacional - Força conversão para Sistema Nacional (quando município já migrou)
+   */
+  private normalizeServiceCode(code: string, forcaNacional: boolean = false): { isNacional: boolean; code: string } {
     // Mapeamento de códigos LC 116/2003 para Sistema Nacional NFS-e
-    const codeMapping: Record<string, string> = {
-      '17.05': '990401', // Locação de bens móveis (Nota Técnica 005/2025)
-      '99.04.01': '990401', // Já no formato correto
+    // ⚠️ ATENÇÃO: SOLUÇÃO TEMPORÁRIA - NT 005/2025 ainda não implementada
+    // O código correto seria 990401 (Locação de bens móveis), mas ainda não está disponível no sistema.
+    // Usando 990101 (Serviços sem incidência de ISSQN e ICMS) como workaround temporário.
+    // TODO: Atualizar para 990401 quando NT 005/2025 for implementada pela Focus NFe
+    const municipalToNacionalMapping: Record<string, string> = {
+      // ✅ ATIVO PARA HOMOLOGAÇÃO: Campinas pode testar Sistema Nacional em homologação
+      // Em produção: obrigatório a partir de 01/01/2026
+      '17.05': '990101', // TEMPORÁRIO: Locação de bens móveis (deveria ser 990401 quando NT 005 implementada)
+      '01.05': '990101', // TEMPORÁRIO: Locação de bens móveis (deveria ser 990401 quando NT 005 implementada)
+      '010500': '990101', // TEMPORÁRIO: Locação de bens móveis (deveria ser 990401 quando NT 005 implementada)
+      '010501': '990101', // TEMPORÁRIO: Locação de bens móveis (deveria ser 990401 quando NT 005 implementada)
     }
 
-    // Remove espaços
+    // Remove espaços e extrai apenas números
     const cleanCode = code.trim()
-
-    // Verifica se existe mapeamento específico
-    if (codeMapping[cleanCode]) {
-      console.log(`[NFS-e] Código ${cleanCode} mapeado para ${codeMapping[cleanCode]}`)
-      return codeMapping[cleanCode]
-    }
-
-    // Se não tem mapeamento, tenta normalizar
     const numericOnly = cleanCode.replace(/\D/g, '')
 
-    // Garante que tenha 6 dígitos, preenchendo com zeros à direita se necessário
-    const normalized = numericOnly.padEnd(6, '0').substring(0, 6)
+    // Se município força Nacional, verificar se precisa converter
+    if (forcaNacional) {
+      // Verifica se existe mapeamento específico para Nacional
+      if (municipalToNacionalMapping[cleanCode]) {
+        const nacionalCode = municipalToNacionalMapping[cleanCode]
+        console.warn(`[NFS-e] ⚠️  WORKAROUND TEMPORÁRIO: Município usa Sistema Nacional - Código ${cleanCode} convertido para ${nacionalCode}`)
+        console.warn(`[NFS-e] ⚠️  IMPORTANTE: NT 005/2025 ainda não implementada. Código correto seria 990401 para Locação de Bens Móveis.`)
+        console.warn(`[NFS-e] ⚠️  Atualizar mapeamento quando Focus NFe implementar código 990401`)
+        return { isNacional: true, code: nacionalCode }
+      }
 
-    console.log(`[NFS-e] Código ${cleanCode} normalizado para ${normalized}`)
-    return normalized
+      // Se não tem mapeamento mas é Municipal (não começa com 99), avisar
+      if (!numericOnly.startsWith('99')) {
+        console.warn(`[NFS-e] ⚠️  ATENÇÃO: Município usa Sistema Nacional mas código ${cleanCode} não tem mapeamento. TEMPORÁRIO: Usando 990101 até NT 005 ser implementada (código correto seria 990401 para locação de bens móveis).`)
+      }
+    }
+
+    // Verifica se existe mapeamento específico para Nacional (mesmo sem forçar)
+    if (municipalToNacionalMapping[cleanCode]) {
+      const nacionalCode = municipalToNacionalMapping[cleanCode]
+      console.warn(`[NFS-e] ⚠️  WORKAROUND TEMPORÁRIO: Código Municipal ${cleanCode} mapeado para Nacional ${nacionalCode}`)
+      console.warn(`[NFS-e] ⚠️  NT 005/2025 pendente - código correto seria 990401 (Locação de Bens Móveis)`)
+      return { isNacional: true, code: nacionalCode }
+    }
+
+    // Detecta se é código Nacional (começa com 99 ou tem 6 dígitos sem pontos)
+
+    // Se tem 6 dígitos e começa com 99, é Nacional
+    if (numericOnly.length >= 4 && numericOnly.startsWith('99')) {
+      const nacionalCode = numericOnly.padEnd(6, '0').substring(0, 6)
+      console.log(`[NFS-e] Código detectado como NACIONAL: ${nacionalCode}`)
+      return { isNacional: true, code: nacionalCode }
+    }
+
+    // Se tem formato XX.XX ou XXXX (4 dígitos), é Municipal LC 116/2003
+    if (cleanCode.includes('.')) {
+      // Formato XX.XX - converter para XXYY00 (6 dígitos)
+      // Ex: 01.05 -> 010500
+      const municipalCode = numericOnly.padEnd(6, '0').substring(0, 6)
+      console.log(`[NFS-e] Código ${cleanCode} convertido para formato Municipal 6 dígitos: ${municipalCode}`)
+      return { isNacional: false, code: municipalCode }
+    } else if (numericOnly.length === 4) {
+      // Converter 0105 para 010500 (adicionar 00 do desdobro)
+      const municipalCode = numericOnly + '00'
+      console.log(`[NFS-e] Código ${cleanCode} convertido para formato Municipal 6 dígitos: ${municipalCode}`)
+      return { isNacional: false, code: municipalCode }
+    } else if (numericOnly.length === 6 && !numericOnly.startsWith('99')) {
+      // 6 dígitos mas não começa com 99 - é Municipal (já no formato correto)
+      console.log(`[NFS-e] Código detectado como MUNICIPAL (LC 116/2003): ${numericOnly}`)
+      return { isNacional: false, code: numericOnly }
+    }
+
+    // Fallback: trata como municipal
+    console.warn(`[NFS-e] ⚠️  Código ${cleanCode} não reconhecido, tratando como Municipal`)
+    return { isNacional: false, code: cleanCode }
   }
 
   private mapFocusStatus(focusStatus: string): InvoiceStatus {

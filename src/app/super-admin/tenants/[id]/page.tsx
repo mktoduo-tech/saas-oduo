@@ -54,6 +54,51 @@ import {
   LucideIcon,
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { CreditCard, Check } from "lucide-react"
+
+interface Plan {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  monthlyPrice: number
+  annualPrice: number | null
+  maxUsers: number
+  maxEquipments: number
+  maxBookingsPerMonth: number
+  active: boolean
+  _count?: {
+    subscriptions: number
+  }
+}
+
+interface Subscription {
+  id: string
+  planId: string
+  status: string
+  startDate: string
+  trialEndsAt: string | null
+  currentPeriodStart: string
+  currentPeriodEnd: string
+  billingCycle: string
+  nextBillingDate: string
+  plan: Plan
+}
 
 interface TenantDetails {
   id: string
@@ -171,9 +216,20 @@ export default function TenantDetailsPage({
   const [loadingModules, setLoadingModules] = useState(false)
   const [togglingModule, setTogglingModule] = useState<string | null>(null)
 
+  // Estado para assinatura
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [loadingSubscription, setLoadingSubscription] = useState(false)
+  const [changingPlan, setChangingPlan] = useState(false)
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("")
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<string>("MONTHLY")
+  const [showPlanDialog, setShowPlanDialog] = useState(false)
+
   useEffect(() => {
     fetchTenant()
     fetchModules()
+    fetchSubscription()
+    fetchPlans()
   }, [resolvedParams.id])
 
   const fetchTenant = async () => {
@@ -213,6 +269,71 @@ export default function TenantDetailsPage({
       console.error("Erro ao buscar módulos:", error)
     } finally {
       setLoadingModules(false)
+    }
+  }
+
+  const fetchSubscription = async () => {
+    try {
+      setLoadingSubscription(true)
+      const response = await fetch(`/api/super-admin/tenants/${resolvedParams.id}/subscription`)
+      if (response.ok) {
+        const data = await response.json()
+        setSubscription(data)
+        if (data) {
+          setSelectedPlanId(data.planId)
+          setSelectedBillingCycle(data.billingCycle)
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao buscar assinatura:", error)
+    } finally {
+      setLoadingSubscription(false)
+    }
+  }
+
+  const fetchPlans = async () => {
+    try {
+      const response = await fetch("/api/super-admin/plans")
+      if (response.ok) {
+        const data = await response.json()
+        setPlans(data)
+      }
+    } catch (error) {
+      console.error("Erro ao buscar planos:", error)
+    }
+  }
+
+  const handleChangePlan = async () => {
+    if (!selectedPlanId) {
+      toast.error("Selecione um plano")
+      return
+    }
+
+    setChangingPlan(true)
+    try {
+      // Use POST para criar nova subscription, PUT para alterar existente
+      const method = subscription ? "PUT" : "POST"
+      const response = await fetch(`/api/super-admin/tenants/${resolvedParams.id}/subscription`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: selectedPlanId,
+          billingCycle: selectedBillingCycle,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Erro ao processar solicitação")
+      }
+
+      toast.success(subscription ? "Plano alterado com sucesso!" : "Assinatura criada com sucesso!")
+      setShowPlanDialog(false)
+      fetchSubscription()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao processar solicitação")
+    } finally {
+      setChangingPlan(false)
     }
   }
 
@@ -463,6 +584,10 @@ export default function TenantDetailsPage({
       <Tabs defaultValue="info" className="space-y-6">
         <TabsList className="bg-white/5 border border-white/10">
           <TabsTrigger value="info">Informações</TabsTrigger>
+          <TabsTrigger value="subscription">
+            <CreditCard className="h-4 w-4 mr-1" />
+            Assinatura
+          </TabsTrigger>
           <TabsTrigger value="modules">
             <Settings className="h-4 w-4 mr-1" />
             Módulos
@@ -579,6 +704,261 @@ export default function TenantDetailsPage({
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Subscription Tab */}
+        <TabsContent value="subscription">
+          <Card className="bg-white/5 border-white/10">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Assinatura e Plano
+              </CardTitle>
+              <CardDescription>
+                Gerencie o plano e assinatura deste tenant
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingSubscription ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : subscription ? (
+                <div className="space-y-6">
+                  {/* Current Plan Info */}
+                  <div className="p-6 rounded-lg border border-white/10 bg-gradient-to-br from-blue-500/10 to-purple-500/10">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="text-2xl font-bold text-white">{subscription.plan.name}</h3>
+                          <Badge
+                            variant="outline"
+                            className={
+                              subscription.status === "ACTIVE"
+                                ? "text-emerald-400 border-emerald-400/30 bg-emerald-400/10"
+                                : subscription.status === "TRIALING"
+                                ? "text-blue-400 border-blue-400/30 bg-blue-400/10"
+                                : "text-red-400 border-red-400/30 bg-red-400/10"
+                            }
+                          >
+                            {subscription.status === "ACTIVE"
+                              ? "Ativo"
+                              : subscription.status === "TRIALING"
+                              ? "Período de Teste"
+                              : subscription.status === "CANCELLED"
+                              ? "Cancelado"
+                              : subscription.status}
+                          </Badge>
+                        </div>
+                        {subscription.plan.description && (
+                          <p className="text-gray-400 mb-4">{subscription.plan.description}</p>
+                        )}
+
+                        {/* Plan Features/Limits */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-emerald-400" />
+                            <span className="text-sm text-gray-300">
+                              {subscription.plan.maxUsers} usuários
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-emerald-400" />
+                            <span className="text-sm text-gray-300">
+                              {subscription.plan.maxEquipments} equipamentos
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Check className="h-4 w-4 text-emerald-400" />
+                            <span className="text-sm text-gray-300">
+                              {subscription.plan.maxBookingsPerMonth} reservas/mês
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-emerald-400" />
+                            <span className="text-sm text-gray-300">
+                              {formatCurrency(
+                                subscription.billingCycle === "MONTHLY"
+                                  ? subscription.plan.monthlyPrice
+                                  : subscription.plan.annualPrice || subscription.plan.monthlyPrice
+                              )}
+                              /{subscription.billingCycle === "MONTHLY" ? "mês" : "ano"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button onClick={() => setShowPlanDialog(true)}>Alterar Plano</Button>
+                    </div>
+                  </div>
+
+                  {/* Billing Information */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card className="bg-white/5 border-white/10">
+                      <CardHeader>
+                        <CardTitle className="text-white text-sm">Ciclo de Cobrança</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-gray-400 text-sm">Tipo</p>
+                        <p className="text-white font-medium">
+                          {subscription.billingCycle === "MONTHLY" ? "Mensal" : "Anual"}
+                        </p>
+                        <p className="text-gray-400 text-sm mt-3">Próxima cobrança</p>
+                        <p className="text-white font-medium">{formatDate(subscription.nextBillingDate)}</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-white/5 border-white/10">
+                      <CardHeader>
+                        <CardTitle className="text-white text-sm">Período Atual</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-gray-400 text-sm">Início</p>
+                        <p className="text-white font-medium">{formatDate(subscription.currentPeriodStart)}</p>
+                        <p className="text-gray-400 text-sm mt-3">Fim</p>
+                        <p className="text-white font-medium">{formatDate(subscription.currentPeriodEnd)}</p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-white/5 border-white/10">
+                      <CardHeader>
+                        <CardTitle className="text-white text-sm">Data de Início</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-white font-medium">{formatDate(subscription.startDate)}</p>
+                        {subscription.trialEndsAt && (
+                          <>
+                            <p className="text-gray-400 text-sm mt-3">Teste termina em</p>
+                            <p className="text-blue-400 font-medium">{formatDate(subscription.trialEndsAt)}</p>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-white/5 border-white/10">
+                      <CardHeader>
+                        <CardTitle className="text-white text-sm">Valor do Plano</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-emerald-400 text-2xl font-bold">
+                          {formatCurrency(
+                            subscription.billingCycle === "MONTHLY"
+                              ? subscription.plan.monthlyPrice
+                              : subscription.plan.annualPrice || subscription.plan.monthlyPrice
+                          )}
+                        </p>
+                        <p className="text-gray-400 text-sm mt-1">
+                          por {subscription.billingCycle === "MONTHLY" ? "mês" : "ano"}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-400 mb-4">Este tenant não possui assinatura ativa</p>
+                  <Button onClick={() => setShowPlanDialog(true)}>
+                    Criar Assinatura
+                  </Button>
+                </div>
+              )}
+
+              {/* Dialog de seleção de plano - disponível tanto para criar quanto alterar */}
+              <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+                <DialogContent className="bg-gray-900 border-white/10">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">
+                      {subscription ? "Alterar Plano de Assinatura" : "Criar Assinatura"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Selecione um novo plano e ciclo de cobrança
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label className="text-white">Plano</Label>
+                      <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+                        <SelectTrigger className="bg-white/5 border-white/10">
+                          <SelectValue placeholder="Selecione um plano" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-white/10">
+                          {plans.map((plan) => (
+                            <SelectItem key={plan.id} value={plan.id}>
+                              {plan.name} - {formatCurrency(plan.monthlyPrice)}/mês
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-white">Ciclo de Cobrança</Label>
+                      <Select value={selectedBillingCycle} onValueChange={setSelectedBillingCycle}>
+                        <SelectTrigger className="bg-white/5 border-white/10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-white/10">
+                          <SelectItem value="MONTHLY">Mensal</SelectItem>
+                          <SelectItem value="ANNUAL">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {selectedPlanId && (
+                      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <p className="text-sm text-gray-400 mb-2">Resumo da alteração:</p>
+                        {(() => {
+                          const newPlan = plans.find((p) => p.id === selectedPlanId)
+                          if (!newPlan) return null
+                          return (
+                            <>
+                              <p className="text-white font-medium">{newPlan.name}</p>
+                              <p className="text-sm text-gray-300 mt-1">
+                                {formatCurrency(
+                                  selectedBillingCycle === "MONTHLY"
+                                    ? newPlan.monthlyPrice
+                                    : newPlan.annualPrice || newPlan.monthlyPrice
+                                )}
+                                /{selectedBillingCycle === "MONTHLY" ? "mês" : "ano"}
+                              </p>
+                              <div className="mt-3 space-y-1">
+                                <p className="text-xs text-gray-400">
+                                  • {newPlan.maxUsers} usuários
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  • {newPlan.maxEquipments} equipamentos
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  • {newPlan.maxBookingsPerMonth} reservas/mês
+                                </p>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowPlanDialog(false)}
+                      disabled={changingPlan}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleChangePlan} disabled={changingPlan}>
+                      {changingPlan ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      Confirmar {subscription ? "Alteração" : "Criação"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
         </TabsContent>

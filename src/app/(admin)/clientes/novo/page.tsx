@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -14,52 +14,208 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Save } from "lucide-react"
-import { useForm } from "react-hook-form"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Save, Search, Loader2, Building2, User } from "lucide-react"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { toast } from "sonner"
 
+// Componentes de UI
+import { HelpTooltip } from "@/components/ui/help-tooltip"
+import { MaskedInput, PhoneInput, CEPInput } from "@/components/ui/masked-input"
+
+// Serviços
+import { consultarCEP, isCEPError } from "@/lib/services/cep-service"
+import { getSituacaoColor } from "@/lib/services/cnpj-service"
+
+// Validações
+import { validateCpfCnpj, validateCEP } from "@/lib/fiscal/validators"
+
+// Schema de validação
 const customerSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-  email: z.string().email("Email inválido").optional().or(z.literal("")),
-  phone: z.string().min(1, "Telefone é obrigatório"),
-  cpfCnpj: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  notes: z.string().optional(),
+  personType: z.enum(["PF", "PJ"]),
+  name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
+  tradeName: z.string().optional().nullable(),
+  cpfCnpj: z.string().optional().nullable().refine(
+    (val) => !val || validateCpfCnpj(val),
+    "CPF/CNPJ inválido"
+  ),
+  inscricaoEstadual: z.string().optional().nullable(),
+  inscricaoMunicipal: z.string().optional().nullable(),
+  isIsentoIE: z.boolean(),
+  email: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
+  phone: z.string().optional().nullable(),
+  phoneSecondary: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
+  contactName: z.string().optional().nullable(),
+  street: z.string().optional().nullable(),
+  number: z.string().optional().nullable(),
+  complement: z.string().optional().nullable(),
+  neighborhood: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().max(2, "UF deve ter 2 caracteres").optional().nullable(),
+  zipCode: z.string().optional().nullable().refine(
+    (val) => !val || val.replace(/\D/g, "").length === 0 || validateCEP(val),
+    "CEP inválido"
+  ),
+  ibgeCode: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 })
 
 type CustomerForm = z.infer<typeof customerSchema>
 
+// Tipos para dados do CNPJ
+interface CNPJData {
+  cnpj: string
+  razaoSocial: string
+  nomeFantasia: string | null
+  situacaoCadastral: string
+  endereco: {
+    logradouro: string | null
+    numero: string | null
+    complemento: string | null
+    bairro: string | null
+    cidade: string | null
+    uf: string | null
+    cep: string | null
+    codigoMunicipio: string | null
+  }
+  telefones: string[]
+  email: string | null
+}
+
 export default function NovoClientePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [loadingCNPJ, setLoadingCNPJ] = useState(false)
+  const [loadingCEP, setLoadingCEP] = useState(false)
+  const [cnpjStatus, setCnpjStatus] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
+    control,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<CustomerForm>({
     resolver: zodResolver(customerSchema),
+    defaultValues: {
+      personType: "PJ",
+      isIsentoIE: false,
+    },
   })
+
+  const personType = watch("personType")
+  const isIsentoIE = watch("isIsentoIE")
+  const cpfCnpj = watch("cpfCnpj")
+
+  // Buscar dados do CNPJ
+  const handleSearchCNPJ = useCallback(async () => {
+    if (!cpfCnpj) return
+
+    const cleanedCNPJ = cpfCnpj.replace(/\D/g, "")
+    if (cleanedCNPJ.length !== 14) {
+      toast.error("CNPJ deve ter 14 dígitos")
+      return
+    }
+
+    setLoadingCNPJ(true)
+    setCnpjStatus(null)
+
+    try {
+      const response = await fetch(`/api/cnpj/${cleanedCNPJ}`)
+      const data = await response.json()
+
+      if (data.error) {
+        toast.error(data.message || "Erro ao consultar CNPJ")
+        return
+      }
+
+      const cnpjData = data as CNPJData
+
+      // Preencher campos
+      setValue("name", cnpjData.razaoSocial)
+      if (cnpjData.nomeFantasia) {
+        setValue("tradeName", cnpjData.nomeFantasia)
+      }
+      if (cnpjData.email) {
+        setValue("email", cnpjData.email)
+      }
+      if (cnpjData.telefones?.length > 0) {
+        setValue("phone", cnpjData.telefones[0])
+        if (cnpjData.telefones.length > 1) {
+          setValue("phoneSecondary", cnpjData.telefones[1])
+        }
+      }
+      if (cnpjData.endereco) {
+        setValue("street", cnpjData.endereco.logradouro || "")
+        setValue("number", cnpjData.endereco.numero || "")
+        setValue("complement", cnpjData.endereco.complemento || "")
+        setValue("neighborhood", cnpjData.endereco.bairro || "")
+        setValue("city", cnpjData.endereco.cidade || "")
+        setValue("state", cnpjData.endereco.uf || "")
+        setValue("zipCode", cnpjData.endereco.cep || "")
+        setValue("ibgeCode", cnpjData.endereco.codigoMunicipio || "")
+      }
+
+      setCnpjStatus(cnpjData.situacaoCadastral)
+      toast.success("Dados do CNPJ carregados com sucesso!")
+    } catch (error) {
+      console.error("Erro ao buscar CNPJ:", error)
+      toast.error("Erro ao consultar CNPJ")
+    } finally {
+      setLoadingCNPJ(false)
+    }
+  }, [cpfCnpj, setValue])
+
+  // Buscar dados do CEP
+  const handleSearchCEP = useCallback(async (cep: string) => {
+    const cleanedCEP = cep.replace(/\D/g, "")
+    if (cleanedCEP.length !== 8) return
+
+    setLoadingCEP(true)
+
+    try {
+      const result = await consultarCEP(cleanedCEP)
+
+      if (isCEPError(result)) {
+        toast.error(result.message)
+        return
+      }
+
+      setValue("street", result.logradouro)
+      setValue("neighborhood", result.bairro)
+      setValue("city", result.localidade)
+      setValue("state", result.uf)
+      setValue("ibgeCode", result.ibge)
+
+      // Foca no campo número após preencher
+      document.getElementById("number")?.focus()
+
+      toast.success("Endereço preenchido!")
+    } catch (error) {
+      console.error("Erro ao buscar CEP:", error)
+      toast.error("Erro ao consultar CEP")
+    } finally {
+      setLoadingCEP(false)
+    }
+  }, [setValue])
 
   const onSubmit = async (data: CustomerForm) => {
     try {
       setLoading(true)
 
-      // Convert empty strings to null
-      const cleanData = {
-        ...data,
-        email: data.email || null,
-        cpfCnpj: data.cpfCnpj || null,
-        address: data.address || null,
-        city: data.city || null,
-        state: data.state || null,
-        zipCode: data.zipCode || null,
-        notes: data.notes || null,
-      }
+      // Limpar strings vazias para null
+      const cleanData = Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [
+          key,
+          value === "" ? null : value,
+        ])
+      )
 
       const response = await fetch("/api/customers", {
         method: "POST",
@@ -68,15 +224,16 @@ export default function NovoClientePage() {
       })
 
       if (response.ok) {
+        toast.success("Cliente cadastrado com sucesso!")
         router.push("/clientes")
         router.refresh()
       } else {
         const error = await response.json()
-        alert(error.error || "Erro ao criar cliente")
+        toast.error(error.error || "Erro ao criar cliente")
       }
     } catch (error) {
       console.error("Error creating customer:", error)
-      alert("Erro ao criar cliente")
+      toast.error("Erro ao criar cliente")
     } finally {
       setLoading(false)
     }
@@ -92,7 +249,9 @@ export default function NovoClientePage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-foreground font-headline tracking-wide">Novo Cliente</h1>
+          <h1 className="text-3xl font-bold text-foreground font-headline tracking-wide">
+            Novo Cliente
+          </h1>
           <p className="text-muted-foreground mt-1">
             Cadastre um novo cliente no sistema
           </p>
@@ -101,24 +260,152 @@ export default function NovoClientePage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Informações Básicas */}
+        {/* Tipo de Pessoa */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline tracking-wide">Informações Básicas</CardTitle>
+            <CardTitle className="font-headline tracking-wide">
+              Tipo de Pessoa
+            </CardTitle>
             <CardDescription>
-              Dados principais do cliente
+              Selecione se é pessoa física ou jurídica
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Controller
+              name="personType"
+              control={control}
+              render={({ field }) => (
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="flex gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="PJ" id="pj" />
+                    <Label htmlFor="pj" className="flex items-center gap-2 cursor-pointer">
+                      <Building2 className="h-4 w-4" />
+                      Pessoa Jurídica
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="PF" id="pf" />
+                    <Label htmlFor="pf" className="flex items-center gap-2 cursor-pointer">
+                      <User className="h-4 w-4" />
+                      Pessoa Física
+                    </Label>
+                  </div>
+                </RadioGroup>
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Dados da Empresa / Pessoa */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide">
+              {personType === "PJ" ? "Dados da Empresa" : "Dados Pessoais"}
+            </CardTitle>
+            <CardDescription>
+              {personType === "PJ"
+                ? "Informações da empresa"
+                : "Informações pessoais"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* CPF/CNPJ com busca */}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="name">
-                  Nome Completo <span className="text-destructive">*</span>
-                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="cpfCnpj">
+                    {personType === "PJ" ? "CNPJ" : "CPF"}
+                  </Label>
+                  <HelpTooltip
+                    content={
+                      personType === "PJ"
+                        ? "Digite o CNPJ para buscar automaticamente os dados da empresa na Receita Federal"
+                        : "Digite o CPF do cliente"
+                    }
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Controller
+                    name="cpfCnpj"
+                    control={control}
+                    render={({ field }) => (
+                      <MaskedInput
+                        mask={personType === "PJ" ? "cnpj" : "cpf"}
+                        value={field.value || ""}
+                        onChange={(value) => field.onChange(value)}
+                        placeholder={
+                          personType === "PJ"
+                            ? "00.000.000/0000-00"
+                            : "000.000.000-00"
+                        }
+                        className="flex-1"
+                      />
+                    )}
+                  />
+                  {personType === "PJ" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSearchCNPJ}
+                      disabled={loadingCNPJ}
+                    >
+                      {loadingCNPJ ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+                {errors.cpfCnpj && (
+                  <p className="text-sm text-destructive">
+                    {errors.cpfCnpj.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Status do CNPJ */}
+              {cnpjStatus && personType === "PJ" && (
+                <div className="space-y-2">
+                  <Label>Situação Cadastral</Label>
+                  <div className="h-10 flex items-center">
+                    <Badge variant={getSituacaoColor(cnpjStatus) as "default"}>
+                      {cnpjStatus}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Nome / Razão Social */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="name">
+                    {personType === "PJ" ? "Razão Social" : "Nome Completo"}
+                    <span className="text-destructive ml-1">*</span>
+                  </Label>
+                  <HelpTooltip
+                    content={
+                      personType === "PJ"
+                        ? "Nome oficial da empresa registrado na Receita Federal"
+                        : "Nome completo do cliente"
+                    }
+                  />
+                </div>
                 <Input
                   id="name"
                   {...register("name")}
-                  placeholder="Nome do cliente"
+                  placeholder={
+                    personType === "PJ"
+                      ? "Razão Social da Empresa LTDA"
+                      : "Nome completo"
+                  }
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">
@@ -127,52 +414,164 @@ export default function NovoClientePage() {
                 )}
               </div>
 
+              {/* Nome Fantasia (só PJ) */}
+              {personType === "PJ" && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="tradeName">Nome Fantasia</Label>
+                    <HelpTooltip content="Nome comercial pelo qual a empresa é conhecida" />
+                  </div>
+                  <Input
+                    id="tradeName"
+                    {...register("tradeName")}
+                    placeholder="Nome Fantasia"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Inscrições (só PJ) */}
+            {personType === "PJ" && (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="inscricaoEstadual">Inscrição Estadual</Label>
+                    <HelpTooltip content="Número de registro na Secretaria da Fazenda estadual. Marque 'Isento' se a empresa não possui" />
+                  </div>
+                  <Input
+                    id="inscricaoEstadual"
+                    {...register("inscricaoEstadual")}
+                    placeholder="Inscrição Estadual"
+                    disabled={isIsentoIE}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>&nbsp;</Label>
+                  <div className="flex items-center space-x-2 h-10">
+                    <Controller
+                      name="isIsentoIE"
+                      control={control}
+                      render={({ field }) => (
+                        <Checkbox
+                          id="isIsentoIE"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <Label htmlFor="isIsentoIE" className="cursor-pointer">
+                      Isento de IE
+                    </Label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="inscricaoMunicipal">
+                      Inscrição Municipal
+                    </Label>
+                    <HelpTooltip content="Número de registro na prefeitura para prestadores de serviço" />
+                  </div>
+                  <Input
+                    id="inscricaoMunicipal"
+                    {...register("inscricaoMunicipal")}
+                    placeholder="Inscrição Municipal"
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Contato */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide">Contato</CardTitle>
+            <CardDescription>Informações de contato do cliente</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Nome do Contato (só PJ) */}
+            {personType === "PJ" && (
               <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="contactName">Nome do Contato</Label>
+                  <HelpTooltip content="Nome da pessoa responsável pelo contato na empresa" />
+                </div>
                 <Input
-                  id="cpfCnpj"
-                  {...register("cpfCnpj")}
-                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  id="contactName"
+                  {...register("contactName")}
+                  placeholder="Nome da pessoa de contato"
                 />
-                {errors.cpfCnpj && (
-                  <p className="text-sm text-destructive">
-                    {errors.cpfCnpj.message}
-                  </p>
-                )}
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Telefone Comercial</Label>
+                <Controller
+                  name="phone"
+                  control={control}
+                  render={({ field }) => (
+                    <PhoneInput
+                      id="phone"
+                      value={field.value || ""}
+                      onChange={(value) => field.onChange(value)}
+                      placeholder="(00) 0000-0000"
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneSecondary">Celular</Label>
+                <Controller
+                  name="phoneSecondary"
+                  control={control}
+                  render={({ field }) => (
+                    <PhoneInput
+                      id="phoneSecondary"
+                      value={field.value || ""}
+                      onChange={(value) => field.onChange(value)}
+                      placeholder="(00) 00000-0000"
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="whatsapp">WhatsApp</Label>
+                  <HelpTooltip content="Número do WhatsApp para contato rápido" />
+                </div>
+                <Controller
+                  name="whatsapp"
+                  control={control}
+                  render={({ field }) => (
+                    <PhoneInput
+                      id="whatsapp"
+                      value={field.value || ""}
+                      onChange={(value) => field.onChange(value)}
+                      placeholder="(00) 00000-0000"
+                    />
+                  )}
+                />
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  {...register("email")}
-                  placeholder="cliente@exemplo.com"
-                />
-                {errors.email && (
-                  <p className="text-sm text-destructive">
-                    {errors.email.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">
-                  Telefone <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="phone"
-                  {...register("phone")}
-                  placeholder="(00) 00000-0000"
-                />
-                {errors.phone && (
-                  <p className="text-sm text-destructive">
-                    {errors.phone.message}
-                  </p>
-                )}
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...register("email")}
+                placeholder="cliente@exemplo.com"
+              />
+              {errors.email && (
+                <p className="text-sm text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -184,17 +583,96 @@ export default function NovoClientePage() {
             <CardDescription>Localização do cliente</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="address">Endereço</Label>
-              <Input
-                id="address"
-                {...register("address")}
-                placeholder="Rua, número, complemento"
-              />
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="zipCode">CEP</Label>
+                  <HelpTooltip content="Digite o CEP para preencher o endereço automaticamente" />
+                </div>
+                <div className="flex gap-2">
+                  <Controller
+                    name="zipCode"
+                    control={control}
+                    render={({ field }) => (
+                      <CEPInput
+                        id="zipCode"
+                        value={field.value || ""}
+                        onChange={(value) => {
+                          field.onChange(value)
+                          // Auto-busca quando completa 8 dígitos
+                          if (value.replace(/\D/g, "").length === 8) {
+                            handleSearchCEP(value)
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const cep = watch("zipCode")
+                      if (cep) handleSearchCEP(cep)
+                    }}
+                    disabled={loadingCEP}
+                  >
+                    {loadingCEP ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {errors.zipCode && (
+                  <p className="text-sm text-destructive">
+                    {errors.zipCode.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2 md:col-span-3">
+                <Label htmlFor="street">Logradouro</Label>
+                <Input
+                  id="street"
+                  {...register("street")}
+                  placeholder="Rua, Avenida, etc."
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="number">Número</Label>
+                <Input
+                  id="number"
+                  {...register("number")}
+                  placeholder="Nº"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="complement">Complemento</Label>
+                <Input
+                  id="complement"
+                  {...register("complement")}
+                  placeholder="Sala, Andar, etc."
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="neighborhood">Bairro</Label>
+                <Input
+                  id="neighborhood"
+                  {...register("neighborhood")}
+                  placeholder="Bairro"
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="city">Cidade</Label>
                 <Input
                   id="city"
@@ -204,31 +682,33 @@ export default function NovoClientePage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="state">Estado</Label>
+                <Label htmlFor="state">UF</Label>
                 <Input
                   id="state"
                   {...register("state")}
                   placeholder="UF"
                   maxLength={2}
+                  className="uppercase"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="zipCode">CEP</Label>
-                <Input
-                  id="zipCode"
-                  {...register("zipCode")}
-                  placeholder="00000-000"
-                />
+                {errors.state && (
+                  <p className="text-sm text-destructive">
+                    {errors.state.message}
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Campo oculto para código IBGE */}
+            <input type="hidden" {...register("ibgeCode")} />
           </CardContent>
         </Card>
 
         {/* Observações */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline tracking-wide">Observações</CardTitle>
+            <CardTitle className="font-headline tracking-wide">
+              Observações
+            </CardTitle>
             <CardDescription>
               Informações adicionais sobre o cliente
             </CardDescription>

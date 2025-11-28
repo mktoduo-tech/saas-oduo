@@ -228,29 +228,97 @@ model UnavailableDate {
 
 // Cliente
 model Customer {
-  id           String   @id @default(cuid())
-  name         String
-  email        String?
-  phone        String
-  cpfCnpj      String?
-  address      String?
-  city         String?
-  state        String?
-  zipCode      String?
-  notes        String?  @db.Text
+  id                  String   @id @default(cuid())
 
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Tipo de pessoa
+  personType          String   @default("PJ") // PF ou PJ
 
-  bookings     Booking[]
+  // Dados básicos
+  name                String   // Nome completo (PF) ou Razão Social (PJ)
+  tradeName           String?  // Nome Fantasia (PJ)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // Documentos
+  cpfCnpj             String?
+  inscricaoEstadual   String?
+  inscricaoMunicipal  String?
+  isIsentoIE          Boolean  @default(false)
+
+  // Contatos
+  email               String?
+  phone               String?  // Telefone principal
+  phoneSecondary      String?  // Telefone secundário
+  whatsapp            String?
+  contactName         String?  // Nome do contato (PJ)
+
+  // Endereço expandido
+  street              String?  // Logradouro
+  number              String?  // Número
+  complement          String?  // Complemento
+  neighborhood        String?  // Bairro
+  city                String?
+  state               String?
+  zipCode             String?
+  ibgeCode            String?  // Código IBGE do município
+
+  // Campos legados (mantidos para compatibilidade)
+  address             String?  @map("address_legacy")
+
+  // Dados adicionais
+  notes               String?  @db.Text
+  isActive            Boolean  @default(true)
+
+  // Relações
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings            Booking[]
+  sites               CustomerSite[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([tenantId])
+  @@index([cpfCnpj])
+  @@index([tenantId, isActive])
 }
 
-// Locação
+// Local de Obra / Entrega do Cliente
+model CustomerSite {
+  id              String   @id @default(cuid())
+
+  // Identificação
+  name            String   // "Obra Centro", "Canteiro Norte"
+
+  // Endereço
+  street          String?  // Logradouro
+  number          String?  // Número
+  complement      String?  // Complemento
+  neighborhood    String?  // Bairro
+  city            String?
+  state           String?
+  zipCode         String?
+  ibgeCode        String?  // Código IBGE do município
+
+  // Contato no local
+  contactName     String?
+  contactPhone    String?
+
+  // Controle
+  isActive        Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+
+  // Relações
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookings        Booking[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([customerId, isActive])
+}
+
+// Orçamento / Locação
 model Booking {
   id              String   @id @default(cuid())
   bookingNumber   String   @unique @default(cuid())
@@ -269,6 +337,10 @@ model Booking {
 
   customerId      String
   customer        Customer  @relation(fields: [customerId], references: [id])
+
+  // Local de entrega (opcional - se não informado, usa endereço do cliente)
+  customerSiteId  String?
+  customerSite    CustomerSite? @relation(fields: [customerSiteId], references: [id])
 
   tenantId        String
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)

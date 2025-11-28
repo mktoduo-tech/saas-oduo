@@ -50,7 +50,10 @@ export class FocusNfeClient {
     // Focus NFe usa Basic Auth com token:''
     const auth = Buffer.from(`${this.token}:`).toString('base64')
 
-    console.log('[Focus NFe] Request:', { method, url, hasBody: !!body })
+    console.log('[Focus NFe] ========== REQUEST ==========')
+    console.log('[Focus NFe] Method:', method)
+    console.log('[Focus NFe] URL:', url)
+    console.log('[Focus NFe] Body:', body ? JSON.stringify(body, null, 2) : 'none')
 
     const response = await fetch(url, {
       method,
@@ -61,13 +64,23 @@ export class FocusNfeClient {
       body: body ? JSON.stringify(body) : undefined,
     })
 
-    const data = await response.json().catch(() => ({}))
+    const responseText = await response.text()
+    console.log('[Focus NFe] ========== RESPONSE ==========')
+    console.log('[Focus NFe] Status:', response.status)
+    console.log('[Focus NFe] OK:', response.ok)
+    console.log('[Focus NFe] Response Text:', responseText)
 
-    console.log('[Focus NFe] Response:', {
-      status: response.status,
-      ok: response.ok,
-      data: JSON.stringify(data, null, 2)
-    })
+    // Tentar parsear JSON
+    let data: any = {}
+    try {
+      data = JSON.parse(responseText)
+      console.log('[Focus NFe] Parsed JSON:', JSON.stringify(data, null, 2))
+    } catch (e) {
+      console.error('[Focus NFe] Erro ao parsear JSON:', e)
+      console.error('[Focus NFe] Response não é JSON válido:', responseText)
+      data = { error: 'Resposta não é JSON válido', rawResponse: responseText }
+    }
+    console.log('[Focus NFe] =====================================')
 
     if (!response.ok) {
       throw mapHttpError(response.status, data)
@@ -101,15 +114,19 @@ export class FocusNfeClient {
    * @param payload - Dados da NFS-e
    */
   async emitirNfse(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
-    // Códigos do Sistema Nacional NFS-e começam com 99
-    const codigoNacional = payload.servico.codigo_tributacao_nacional_iss
+    // Detectar se payload já está em formato Nacional (DPS) ou Municipal
+    const isPayloadNacional = !!(payload as any).codigo_tributacao_nacional_iss
+    const codigoNacional = isPayloadNacional
+      ? (payload as any).codigo_tributacao_nacional_iss
+      : (payload as any).servico?.codigo_tributacao_nacional_iss
     const isNacional = codigoNacional?.startsWith('99')
 
+    console.log(`[Focus NFe] Formato do payload: ${isPayloadNacional ? 'NACIONAL (DPS)' : 'MUNICIPAL'}`)
     console.log(`[Focus NFe] Usando endpoint: ${isNacional ? '/nfsen (Nacional)' : '/nfse (Municipal)'}`)
 
     if (isNacional) {
-      // Converter payload para formato Nacional
-      const payloadNacional = this.convertToNacionalPayload(payload)
+      // Se payload já está em formato Nacional, usar direto. Senão, converter
+      const payloadNacional = isPayloadNacional ? payload : this.convertToNacionalPayload(payload)
       return this.emitirNfseNacional(ref, payloadNacional)
     } else {
       return this.emitirNfseMunicipal(ref, payload)
@@ -123,7 +140,17 @@ export class FocusNfeClient {
     const dataEmissao = new Date(payload.data_emissao)
     const dataCompetencia = dataEmissao.toISOString().split('T')[0] // YYYY-MM-DD
 
-    return {
+    const issRetido = payload.servico.iss_retido
+    const hasEndereco = !!payload.tomador.endereco
+
+    // Log para debug
+    console.log(`[Focus NFe] Convertendo para Nacional - ISS Retido: ${issRetido}, Tem Endereço: ${hasEndereco}`)
+
+    if (issRetido && !hasEndereco) {
+      console.error('[Focus NFe] ❌ ERRO: ISS retido mas endereço do tomador não foi adicionado ao payload!')
+    }
+
+    const payloadNacional = {
       data_emissao: payload.data_emissao,
       data_competencia: dataCompetencia,
       codigo_municipio_emissora: payload.prestador.codigo_municipio,
@@ -138,23 +165,31 @@ export class FocusNfeClient {
       cnpj_tomador: payload.tomador.cnpj,
       cpf_tomador: payload.tomador.cpf,
       razao_social_tomador: payload.tomador.razao_social,
+      telefone_tomador: payload.tomador.telefone,
+      email_tomador: payload.tomador.email,
+
+      // Endereço do tomador (obrigatório quando ISS retido)
       codigo_municipio_tomador: payload.tomador.endereco?.codigo_municipio,
       cep_tomador: payload.tomador.endereco?.cep,
       logradouro_tomador: payload.tomador.endereco?.logradouro,
       numero_tomador: payload.tomador.endereco?.numero,
       complemento_tomador: payload.tomador.endereco?.complemento,
       bairro_tomador: payload.tomador.endereco?.bairro,
-      telefone_tomador: payload.tomador.telefone,
-      email_tomador: payload.tomador.email,
 
       // Serviço
       codigo_municipio_prestacao: payload.prestador.codigo_municipio,
       codigo_tributacao_nacional_iss: payload.servico.codigo_tributacao_nacional_iss,
       descricao_servico: payload.servico.discriminacao,
       valor_servico: payload.servico.valor_servicos,
-      tributacao_iss: 1, // 1 = Tributável
-      tipo_retencao_iss: payload.servico.iss_retido ? 1 : 2, // 1 = Retido, 2 = Não retido
+      tributacao_iss: 1, // 1 = Operação tributável
+      // IMPORTANTE: 1 = Não Retido, 2 = Retido pelo Tomador, 3 = Retido pelo Intermediário
+      tipo_retencao_iss: issRetido ? 2 : 1, // ✅ CORRIGIDO: estava invertido!
     }
+
+    // Log do payload convertido
+    console.log('[Focus NFe] Payload Nacional:', JSON.stringify(payloadNacional, null, 2))
+
+    return payloadNacional
   }
 
   /**

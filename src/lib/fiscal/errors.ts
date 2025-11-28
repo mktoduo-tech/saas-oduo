@@ -121,14 +121,38 @@ export function mapHttpError(status: number, body?: unknown): FiscalError {
       return new FocusNfeAuthError()
 
     case 400:
+      // Log completo para debug
+      console.error('[Focus NFe] Erro 400 - Body completo:', JSON.stringify(body, null, 2))
+
       const errors = Array.isArray((body as { erros?: unknown[] })?.erros)
         ? ((body as { erros: FocusNfeError[] }).erros)
         : []
 
-      // Se não tem erros estruturados, tentar extrair mensagem do body
-      const message400 = errors.length === 0 && body && typeof body === 'object'
-        ? `Dados inválidos: ${JSON.stringify(body)}`
-        : 'Dados inválidos para emissão'
+      console.error('[Focus NFe] Erros extraídos do campo "erros":', errors)
+
+      // Tentar extrair mensagem de diferentes estruturas possíveis
+      let message400 = 'Dados inválidos para emissão'
+
+      if (errors.length > 0) {
+        // Se tem erros estruturados, usar a primeira mensagem
+        message400 = errors.map(e => e.mensagem || e.codigo).join('; ')
+      } else if (body && typeof body === 'object') {
+        // Tentar extrair de outras estruturas possíveis
+        const bodyObj = body as any
+
+        if (bodyObj.mensagem) {
+          message400 = `Erro de validação: ${bodyObj.mensagem}`
+        } else if (bodyObj.erro) {
+          message400 = `Erro de validação: ${bodyObj.erro}`
+        } else if (bodyObj.message) {
+          message400 = `Erro de validação: ${bodyObj.message}`
+        } else {
+          // Se não encontrou mensagem, incluir o body completo
+          message400 = `Dados inválidos: ${JSON.stringify(body)}`
+        }
+      }
+
+      console.error('[Focus NFe] Mensagem final do erro 400:', message400)
 
       return new FocusNfeApiError(message400, errors, status)
 
@@ -136,10 +160,47 @@ export function mapHttpError(status: number, body?: unknown): FiscalError {
       return new FiscalError('Recurso não encontrado no Focus NFe', 'FOCUS_NFE_NOT_FOUND')
 
     case 422:
-      const validationErrors = Array.isArray((body as { erros?: unknown[] })?.erros)
+      // Log detalhado para debug
+      console.error('[Focus NFe] Erro 422 - Body completo:', JSON.stringify(body, null, 2))
+
+      let validationErrors = Array.isArray((body as { erros?: unknown[] })?.erros)
         ? ((body as { erros: FocusNfeError[] }).erros)
         : []
-      return new FocusNfeApiError('Erro de validação', validationErrors, status)
+
+      console.error('[Focus NFe] Validation errors extraídos do array "erros":', validationErrors)
+
+      // Tentar extrair mensagem de diferentes estruturas possíveis
+      let message422 = 'Erro de validação'
+
+      if (validationErrors.length > 0) {
+        // Se tem erros estruturados no array, usar
+        message422 = validationErrors.map(e => e.mensagem || e.codigo).join('; ')
+      } else if (body && typeof body === 'object') {
+        // Tentar extrair de estrutura direta (codigo + mensagem no body)
+        const bodyObj = body as any
+
+        if (bodyObj.codigo && bodyObj.mensagem) {
+          // Formato: { "codigo": "erro_validacao_schema", "mensagem": "..." }
+          message422 = `${bodyObj.codigo}: ${bodyObj.mensagem}`
+          // Criar um erro estruturado
+          validationErrors = [{
+            codigo: bodyObj.codigo,
+            mensagem: bodyObj.mensagem,
+            correcao: bodyObj.correcao
+          }]
+        } else if (bodyObj.mensagem) {
+          message422 = bodyObj.mensagem
+        } else if (bodyObj.erro) {
+          message422 = bodyObj.erro
+        } else if (bodyObj.message) {
+          message422 = bodyObj.message
+        }
+      }
+
+      console.error('[Focus NFe] Mensagem final do erro 422:', message422)
+      console.error('[Focus NFe] Erros estruturados:', validationErrors)
+
+      return new FocusNfeApiError(message422, validationErrors, status)
 
     case 429:
       return new FiscalError('Limite de requisições excedido', 'FOCUS_NFE_RATE_LIMIT')
