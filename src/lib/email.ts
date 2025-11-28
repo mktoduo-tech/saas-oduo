@@ -666,6 +666,119 @@ export const emailTemplates = {
     `,
   }),
 
+  // Envio de documento (contrato ou recibo)
+  documentSend: (data: {
+    customerName: string
+    customerEmail: string
+    documentType: 'CONTRACT' | 'RECEIPT'
+    documentHtml: string
+    bookingId: string
+    equipmentName: string
+    startDate: string
+    endDate: string
+    totalPrice: number
+    tenantName: string
+    tenantPhone?: string
+    tenantEmail?: string
+  }) => {
+    const isContract = data.documentType === 'CONTRACT'
+    const documentTypeName = isContract ? 'Contrato de Locação' : 'Recibo de Pagamento'
+    const headerColor = isContract
+      ? 'background: linear-gradient(135deg, #dc2626 0%, #ea580c 50%, #f97316 100%);'
+      : 'background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);'
+    const accentColor = isContract ? '#f97316' : '#10b981'
+
+    return {
+      subject: `${documentTypeName} - Reserva #${data.bookingId.slice(-8).toUpperCase()} | ${data.tenantName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>${baseStyles}
+              .header { ${headerColor} }
+            </style>
+          </head>
+          <body>
+            <div class="wrapper">
+              <div class="container">
+                <div class="header">
+                  <h1 class="logo">${data.tenantName}</h1>
+                  <p class="logo-subtitle">Locação de Equipamentos</p>
+                  <h2 class="header-title">${documentTypeName}</h2>
+                </div>
+
+                <div class="content">
+                  <p class="greeting">Olá <strong>${data.customerName}</strong>,</p>
+                  <p class="message">
+                    ${isContract
+                      ? 'Segue em anexo o contrato de locação referente à sua reserva. Por favor, leia atentamente os termos e condições.'
+                      : 'Segue em anexo o recibo de pagamento referente à sua reserva. Guarde este documento para sua referência.'}
+                  </p>
+
+                  <div class="details-card">
+                    <h3 class="details-title" style="color: ${accentColor}; border-color: ${accentColor}33;">Detalhes da Reserva</h3>
+                    <div class="details-row">
+                      <span class="details-label">Nº da Reserva</span>
+                      <span class="details-value">#${data.bookingId.slice(-8).toUpperCase()}</span>
+                    </div>
+                    <div class="details-row">
+                      <span class="details-label">Equipamento</span>
+                      <span class="details-value">${data.equipmentName}</span>
+                    </div>
+                    <div class="details-row">
+                      <span class="details-label">Período</span>
+                      <span class="details-value">${data.startDate} a ${data.endDate}</span>
+                    </div>
+                    <div class="total-row" style="background: linear-gradient(135deg, ${accentColor}1a 0%, ${accentColor}0d 100%);">
+                      <div class="details-row" style="border: none; padding: 0;">
+                        <span class="details-label" style="font-size: 14px;">Valor Total</span>
+                        <span class="total-value" style="color: ${accentColor};">R$ ${data.totalPrice.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="highlight-box" style="background: linear-gradient(135deg, ${accentColor}1a 0%, ${accentColor}0d 100%); border-color: ${accentColor}4d;">
+                    <p class="highlight-text">
+                      ${isContract
+                        ? 'O documento completo está disponível abaixo neste email.'
+                        : 'Este recibo serve como comprovante de pagamento.'}
+                    </p>
+                  </div>
+
+                  <p class="message">
+                    Em caso de dúvidas, entre em contato conosco${data.tenantPhone ? ` pelo telefone <strong style="color: #fafafa;">${data.tenantPhone}</strong>` : ''}${data.tenantEmail ? ` ou pelo email <strong style="color: #fafafa;">${data.tenantEmail}</strong>` : ''}.
+                  </p>
+
+                  <div class="signature">
+                    <p class="signature-text">Atenciosamente,</p>
+                    <p class="signature-name">${data.tenantName}</p>
+                  </div>
+                </div>
+
+                <div class="footer">
+                  <p class="footer-text">Este é um email automático, por favor não responda.</p>
+                  <p class="footer-brand">Powered by ODuo</p>
+                </div>
+              </div>
+
+              <!-- Documento anexado como HTML inline -->
+              <div style="margin-top: 24px; background: #ffffff; border-radius: 8px; overflow: hidden;">
+                <div style="background: ${accentColor}; color: white; padding: 12px 16px; font-weight: 600;">
+                  📄 ${documentTypeName} - Visualização
+                </div>
+                <div style="padding: 0;">
+                  ${data.documentHtml}
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    }
+  },
+
   // Boas-vindas (após verificação de email)
   welcome: (data: {
     userName: string

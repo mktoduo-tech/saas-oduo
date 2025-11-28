@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { bookingItemSchema } from "@/lib/validations/stock"
 import { calculateRentalPrice } from "@/lib/pricing"
 import { checkBookingLimit } from "@/lib/plan-limits"
+import { revalidateBookings } from "@/lib/cache/revalidate"
 import { z } from "zod"
 
 // GET - Listar reservas
@@ -379,6 +380,9 @@ export async function POST(request: NextRequest) {
 
       return completeBooking
     })
+
+    // Invalidar cache (bookings, stock-alerts, dashboard)
+    revalidateBookings(session.user.tenantId)
 
     return NextResponse.json({ booking }, { status: 201 })
   } catch (error) {

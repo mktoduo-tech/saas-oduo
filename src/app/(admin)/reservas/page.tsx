@@ -438,6 +438,14 @@ export default function ReservasPage() {
                                 Baixar Contrato (PDF)
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                onClick={() => handleSendEmail(booking.id, "contract")}
+                                disabled={!booking.customer.email}
+                              >
+                                <Mail className="h-4 w-4 mr-2" />
+                                Enviar Contrato por Email
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
                                 onClick={() => handleGenerateDocument(booking.id, "RECEIPT")}
                               >
                                 <Receipt className="h-4 w-4 mr-2" />
@@ -448,6 +456,13 @@ export default function ReservasPage() {
                               >
                                 <Download className="h-4 w-4 mr-2" />
                                 Baixar Recibo (PDF)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleSendEmail(booking.id, "receiptDocument")}
+                                disabled={!booking.customer.email}
+                              >
+                                <Mail className="h-4 w-4 mr-2" />
+                                Enviar Recibo por Email
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               {["CONFIRMED", "COMPLETED"].includes(booking.status) && (

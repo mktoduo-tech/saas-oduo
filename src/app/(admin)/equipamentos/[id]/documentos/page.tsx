@@ -15,6 +15,8 @@ import {
   Shield,
   Receipt,
   HelpCircle,
+  Loader2,
+  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -112,7 +114,9 @@ export default function DocumentosEquipamentoPage({
   // Form state
   const [docName, setDocName] = useState("")
   const [docType, setDocType] = useState<string>("OTHER")
-  const [docUrl, setDocUrl] = useState("")
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string>("")
 
   useEffect(() => {
     fetchData()
@@ -147,14 +151,52 @@ export default function DocumentosEquipamentoPage({
     }
   }
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validar tamanho (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Arquivo muito grande. Máximo: 10MB")
+        return
+      }
+      setSelectedFile(file)
+      // Auto-preencher nome se estiver vazio
+      if (!docName) {
+        setDocName(file.name.replace(/\.[^/.]+$/, ""))
+      }
+    }
+  }
+
   const handleAddDocument = async () => {
-    if (!docName || !docUrl) {
-      toast.error("Preencha todos os campos obrigatórios")
+    if (!docName || !selectedFile) {
+      toast.error("Selecione um arquivo e preencha o nome")
       return
     }
 
     setIsSubmitting(true)
+    setIsUploading(true)
+    setUploadProgress("Enviando arquivo...")
+
     try {
+      // 1. Upload do arquivo
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+      formData.append("folder", "equipamentos/documentos")
+
+      const uploadResponse = await fetch("/api/upload/document", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json()
+        throw new Error(error.error || "Erro ao fazer upload do arquivo")
+      }
+
+      const uploadResult = await uploadResponse.json()
+      setUploadProgress("Salvando documento...")
+
+      // 2. Salvar referência do documento
       const response = await fetch(
         `/api/equipments/${resolvedParams.id}/documents`,
         {
@@ -163,7 +205,8 @@ export default function DocumentosEquipamentoPage({
           body: JSON.stringify({
             name: docName,
             type: docType,
-            url: docUrl,
+            url: uploadResult.url,
+            fileSize: uploadResult.fileSize,
           }),
         }
       )
@@ -182,6 +225,8 @@ export default function DocumentosEquipamentoPage({
       toast.error(message)
     } finally {
       setIsSubmitting(false)
+      setIsUploading(false)
+      setUploadProgress("")
     }
   }
 
@@ -207,7 +252,8 @@ export default function DocumentosEquipamentoPage({
   const resetForm = () => {
     setDocName("")
     setDocType("OTHER")
-    setDocUrl("")
+    setSelectedFile(null)
+    setUploadProgress("")
   }
 
   const formatFileSize = (bytes: number | null) => {
@@ -271,6 +317,49 @@ export default function DocumentosEquipamentoPage({
               </DialogHeader>
 
               <div className="space-y-4 py-4">
+                {/* Upload de Arquivo */}
+                <div className="space-y-2">
+                  <Label>Arquivo *</Label>
+                  {!selectedFile ? (
+                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                      <input
+                        type="file"
+                        id="fileUpload"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp"
+                        onChange={handleFileSelect}
+                        disabled={isSubmitting}
+                      />
+                      <label htmlFor="fileUpload" className="cursor-pointer">
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm font-medium">Clique para selecionar</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WebP (max. 10MB)
+                        </p>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                      <File className="h-8 w-8 text-primary" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatFileSize(selectedFile.size)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedFile(null)}
+                        disabled={isSubmitting}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="docName">Nome do Documento *</Label>
                   <Input
@@ -278,12 +367,13 @@ export default function DocumentosEquipamentoPage({
                     placeholder="Ex: Manual do Usuário"
                     value={docName}
                     onChange={(e) => setDocName(e.target.value)}
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="docType">Tipo *</Label>
-                  <Select value={docType} onValueChange={setDocType}>
+                  <Select value={docType} onValueChange={setDocType} disabled={isSubmitting}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -297,19 +387,13 @@ export default function DocumentosEquipamentoPage({
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="docUrl">URL do Documento *</Label>
-                  <Input
-                    id="docUrl"
-                    placeholder="https://..."
-                    value={docUrl}
-                    onChange={(e) => setDocUrl(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Cole o link do documento hospedado (Google Drive, Dropbox,
-                    etc.)
-                  </p>
-                </div>
+                {/* Progress indicator */}
+                {isUploading && uploadProgress && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {uploadProgress}
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
@@ -319,11 +403,26 @@ export default function DocumentosEquipamentoPage({
                     setDialogOpen(false)
                     resetForm()
                   }}
+                  disabled={isSubmitting}
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleAddDocument} disabled={isSubmitting}>
-                  {isSubmitting ? "Salvando..." : "Adicionar"}
+                <Button
+                  onClick={handleAddDocument}
+                  disabled={isSubmitting || !selectedFile}
+                  className="gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {isUploading ? "Enviando..." : "Salvando..."}
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Enviar Documento
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>

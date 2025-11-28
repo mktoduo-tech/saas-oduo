@@ -137,72 +137,77 @@ export function RentalPeriodInput({ value, onChange, disabled }: RentalPeriodInp
       )}
 
       {/* Formulário para adicionar novo período */}
-      <div className="flex gap-3 items-end p-4 rounded-lg border border-dashed bg-muted/30">
-        <div className="flex-1 space-y-1">
-          <Label htmlFor="newDays" className="text-xs text-muted-foreground">
-            Dias
-          </Label>
-          <Input
-            id="newDays"
-            type="number"
-            min="1"
-            placeholder="Ex: 7"
-            value={newDays}
-            onChange={(e) => setNewDays(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            className="h-9"
-          />
+      <div className="p-4 rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-primary">
+          <Plus className="h-4 w-4" />
+          <span>Adicionar Período de Locação</span>
         </div>
-        <div className="flex-1 space-y-1">
-          <Label htmlFor="newPrice" className="text-xs text-muted-foreground">
-            Valor (R$)
-          </Label>
-          <Input
-            id="newPrice"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Ex: 500.00"
-            value={newPrice}
-            onChange={(e) => setNewPrice(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            className="h-9"
-          />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="newDays" className="text-xs font-medium">
+              Quantidade de Dias *
+            </Label>
+            <Input
+              id="newDays"
+              type="number"
+              min="1"
+              placeholder="Ex: 7"
+              value={newDays}
+              onChange={(e) => setNewDays(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="newPrice" className="text-xs font-medium">
+              Valor Total (R$) *
+            </Label>
+            <Input
+              id="newPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Ex: 500.00"
+              value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="newLabel" className="text-xs font-medium">
+              Nome do Período
+            </Label>
+            <Input
+              id="newLabel"
+              type="text"
+              placeholder="Ex: Semanal"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={disabled}
+            />
+          </div>
         </div>
-        <div className="flex-1 space-y-1">
-          <Label htmlFor="newLabel" className="text-xs text-muted-foreground">
-            Nome (opcional)
-          </Label>
-          <Input
-            id="newLabel"
-            type="text"
-            placeholder="Ex: Semanal"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={disabled}
-            className="h-9"
-          />
-        </div>
+
         <Button
           type="button"
-          variant="outline"
-          size="icon"
           onClick={handleAdd}
           disabled={disabled || !newDays || !newPrice}
-          className="h-9 w-9 shrink-0"
+          className="w-full"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 mr-2" />
+          Adicionar Período
         </Button>
-      </div>
 
-      {value.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Adicione pelo menos um período de locação. Ex: 1 dia por R$ 100, 7 dias por R$ 500, etc.
+        <p className="text-xs text-muted-foreground text-center">
+          {value.length === 0
+            ? "Adicione pelo menos um período. Ex: 1 dia por R$ 100, 7 dias por R$ 500"
+            : "Pressione Enter para adicionar rapidamente"
+          }
         </p>
-      )}
+      </div>
     </div>
   )
 }

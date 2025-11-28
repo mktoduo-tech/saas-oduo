@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
+import { revalidateCustomers } from "@/lib/cache/revalidate"
 
 // GET - Listar clientes
 export async function GET(request: NextRequest) {
@@ -50,8 +49,6 @@ export async function GET(request: NextRequest) {
       { error: "Erro ao buscar clientes" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -135,6 +132,9 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Invalidar cache
+    revalidateCustomers(session.user.tenantId)
+
     return NextResponse.json({ customer }, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar cliente:", error)
@@ -142,7 +142,5 @@ export async function POST(request: NextRequest) {
       { error: "Erro ao criar cliente" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

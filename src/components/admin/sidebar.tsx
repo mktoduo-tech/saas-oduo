@@ -100,7 +100,7 @@ export function Sidebar({ className }: SidebarProps) {
             color: "text-blue-400",
         },
         {
-            label: "Reservas",
+            label: "Orçamentos",
             icon: Calendar,
             href: "/reservas",
             color: "text-purple-400",

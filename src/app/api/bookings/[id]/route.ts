@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { revalidateBookings } from "@/lib/cache/revalidate"
 
 // GET - Buscar reserva por ID
 export async function GET(
@@ -210,6 +211,9 @@ export async function PUT(
       return booking
     })
 
+    // Invalidar cache
+    revalidateBookings(session.user.tenantId)
+
     return NextResponse.json({
       success: true,
       booking: updatedBooking,
@@ -326,6 +330,9 @@ export async function DELETE(
         },
       })
     })
+
+    // Invalidar cache
+    revalidateBookings(session.user.tenantId)
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

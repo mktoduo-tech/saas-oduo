@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Save, Search, Loader2, Building2, User } from "lucide-react"
+import { ArrowLeft, Save, Search, Loader2, Building2, User, MapPin, Info } from "lucide-react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -722,6 +722,26 @@ export default function NovoClientePage() {
                 placeholder="Adicione notas sobre o cliente..."
                 rows={4}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Nota sobre locais de obra */}
+        <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Locais de Obra
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Após salvar o cliente, você poderá adicionar locais de obra e entrega
+                  na tela de edição do cliente.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

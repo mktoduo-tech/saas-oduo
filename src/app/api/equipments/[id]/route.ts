@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { revalidateEquipments } from "@/lib/cache/revalidate"
 
 // GET - Buscar equipamento por ID
 export async function GET(
@@ -194,6 +195,9 @@ export async function PUT(
       })
     })
 
+    // Invalidar cache
+    revalidateEquipments(session.user.tenantId)
+
     return NextResponse.json(equipment, { status: 200 })
   } catch (error) {
     console.error("Erro ao atualizar equipamento:", error)
@@ -231,6 +235,9 @@ export async function DELETE(
         { status: 404 }
       )
     }
+
+    // Invalidar cache
+    revalidateEquipments(session.user.tenantId)
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

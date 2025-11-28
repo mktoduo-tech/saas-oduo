@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { checkEquipmentLimit } from "@/lib/plan-limits"
+import { revalidateEquipments } from "@/lib/cache/revalidate"
 
 // GET - Listar equipamentos
 export async function GET(request: NextRequest) {
@@ -128,6 +129,9 @@ export async function POST(request: NextRequest) {
         },
       },
     })
+
+    // Invalidar cache
+    revalidateEquipments(session.user.tenantId)
 
     return NextResponse.json(equipment, { status: 201 })
   } catch (error) {

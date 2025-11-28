@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
+import { revalidateCustomers } from "@/lib/cache/revalidate"
 
 // GET - Buscar cliente por ID
 export async function GET(
@@ -47,8 +46,6 @@ export async function GET(
       { error: "Erro ao buscar cliente" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -93,6 +90,9 @@ export async function PUT(
       )
     }
 
+    // Invalidar cache
+    revalidateCustomers(session.user.tenantId)
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     console.error("Erro ao atualizar cliente:", error)
@@ -100,8 +100,6 @@ export async function PUT(
       { error: "Erro ao atualizar cliente" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
@@ -153,6 +151,9 @@ export async function DELETE(
       )
     }
 
+    // Invalidar cache
+    revalidateCustomers(session.user.tenantId)
+
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     console.error("Erro ao deletar cliente:", error)
@@ -160,7 +161,5 @@ export async function DELETE(
       { error: "Erro ao deletar cliente" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

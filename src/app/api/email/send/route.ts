@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { sendEmail, emailTemplates } from "@/lib/email"
+import { processTemplate, type TemplateData } from "@/lib/template-variables"
+import { DEFAULT_CONTRACT_TEMPLATE, DEFAULT_RECEIPT_TEMPLATE } from "@/lib/default-templates"
 
 // POST - Enviar email
 export async function POST(request: NextRequest) {
@@ -56,11 +58,39 @@ export async function POST(request: NextRequest) {
     const booking = await prisma.booking.findFirst({
       where: { id: bookingId, tenantId },
       include: {
-        customer: { select: { name: true, email: true } },
-        equipment: { select: { name: true } },
+        customer: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+            cpfCnpj: true,
+            address: true,
+          },
+        },
+        equipment: {
+          select: {
+            name: true,
+            description: true,
+            pricePerDay: true,
+          },
+        },
         items: {
           include: {
-            equipment: { select: { name: true } },
+            equipment: {
+              select: {
+                name: true,
+                description: true,
+                pricePerDay: true,
+              },
+            },
+          },
+        },
+        tenant: {
+          select: {
+            contractTemplate: true,
+            receiptTemplate: true,
+            cnpj: true,
+            address: true,
           },
         },
       },
@@ -141,6 +171,84 @@ export async function POST(request: NextRequest) {
           tenantPhone: tenant.phone || undefined,
         })
         break
+
+      case "contract":
+      case "receiptDocument": {
+        // Calcular total de dias
+        const totalDays = Math.ceil(
+          (new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+
+        // Determinar equipamento principal para dados detalhados
+        const mainEquipment = booking.equipment || booking.items[0]?.equipment
+
+        // Preparar dados para o template
+        const templateData: TemplateData = {
+          clienteNome: booking.customer.name,
+          clienteCpfCnpj: booking.customer.cpfCnpj || undefined,
+          clienteEmail: booking.customer.email || undefined,
+          clienteTelefone: booking.customer.phone || undefined,
+          clienteEndereco: booking.customer.address || undefined,
+          reservaNumero: `RES-${booking.id.slice(-8).toUpperCase()}`,
+          dataInicio: formatDate(booking.startDate),
+          dataFim: formatDate(booking.endDate),
+          totalDias: totalDays,
+          valorTotal: booking.totalPrice,
+          equipamentos: booking.items.length > 0
+            ? booking.items.map((item) => ({
+                nome: item.equipment.name,
+                descricao: item.equipment.description || undefined,
+                quantidade: item.quantity,
+                valorDiaria: item.equipment.pricePerDay,
+                valorTotal: item.totalPrice,
+              }))
+            : mainEquipment
+              ? [{
+                  nome: mainEquipment.name,
+                  descricao: mainEquipment.description || undefined,
+                  quantidade: 1,
+                  valorDiaria: mainEquipment.pricePerDay,
+                  valorTotal: booking.totalPrice,
+                }]
+              : [],
+          empresaNome: tenant.name,
+          empresaCnpj: booking.tenant?.cnpj || undefined,
+          empresaEndereco: booking.tenant?.address || undefined,
+          empresaTelefone: tenant.phone || undefined,
+          empresaEmail: tenant.email || undefined,
+        }
+
+        // Gerar HTML do documento
+        let documentHtml: string
+        const isContract = type === "contract"
+
+        if (isContract) {
+          documentHtml = booking.tenant?.contractTemplate
+            ? processTemplate(booking.tenant.contractTemplate, templateData)
+            : processTemplate(DEFAULT_CONTRACT_TEMPLATE, templateData)
+        } else {
+          documentHtml = booking.tenant?.receiptTemplate
+            ? processTemplate(booking.tenant.receiptTemplate, templateData)
+            : processTemplate(DEFAULT_RECEIPT_TEMPLATE, templateData)
+        }
+
+        emailData = emailTemplates.documentSend({
+          customerName: booking.customer.name,
+          customerEmail: booking.customer.email!,
+          documentType: isContract ? "CONTRACT" : "RECEIPT",
+          documentHtml,
+          bookingId: booking.id,
+          equipmentName,
+          startDate: formatDate(booking.startDate),
+          endDate: formatDate(booking.endDate),
+          totalPrice: booking.totalPrice,
+          tenantName: tenant.name,
+          tenantPhone: tenant.phone || undefined,
+          tenantEmail: tenant.email || undefined,
+        })
+        break
+      }
 
       default:
         return NextResponse.json({ error: "Tipo de email inválido" }, { status: 400 })

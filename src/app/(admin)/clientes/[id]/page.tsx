@@ -327,42 +327,6 @@ export default function EditClientePage({
           </CardContent>
         </Card>
 
-        {/* Locais de Obra */}
-        <CustomerSitesList customerId={id} />
-
-        {/* Histórico de Orçamentos */}
-        {customer.bookings && customer.bookings.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline tracking-wide">Histórico de Orçamentos</CardTitle>
-              <CardDescription>
-                Últimos orçamentos deste cliente
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {customer.bookings.slice(0, 5).map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">{booking.equipment.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(booking.startDate).toLocaleDateString(
-                          "pt-BR"
-                        )}{" "}
-                        até{" "}
-                        {new Date(booking.endDate).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Actions */}
         <div className="flex justify-end gap-4">
           <Link href="/clientes">
@@ -376,6 +340,42 @@ export default function EditClientePage({
           </Button>
         </div>
       </form>
+
+      {/* Locais de Obra - FORA do form para evitar conflito de submit */}
+      <CustomerSitesList customerId={id} />
+
+      {/* Histórico de Orçamentos */}
+      {customer.bookings && customer.bookings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide">Histórico de Orçamentos</CardTitle>
+            <CardDescription>
+              Últimos orçamentos deste cliente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {customer.bookings.slice(0, 5).map((booking) => (
+                <div
+                  key={booking.id}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{booking.equipment.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(booking.startDate).toLocaleDateString(
+                        "pt-BR"
+                      )}{" "}
+                      até{" "}
+                      {new Date(booking.endDate).toLocaleDateString("pt-BR")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
