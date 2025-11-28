@@ -750,7 +750,7 @@ export class NfseService {
   private isMunicipioNacional(codigoMunicipio: string): boolean {
     // Municípios que já migraram para Sistema Nacional NFS-e
     const municipiosNacionais = [
-      // '3509502', // Campinas - SP - DESABILITADO: Nacional só obrigatório a partir de 01/01/2026
+      '3509502', // Campinas - SP - HABILITADO: Usar NFSe Nacional em homologação (produção a partir de 01/01/2026)
       '3550308', // São Paulo - SP
       '3304557', // Rio de Janeiro - RJ
       '4106902', // Curitiba - PR

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { pdfTemplates } from "@/lib/pdf-templates"
+import { processTemplate, type TemplateData } from "@/lib/template-variables"
+import { DEFAULT_CONTRACT_TEMPLATE, DEFAULT_RECEIPT_TEMPLATE } from "@/lib/default-templates"
 
 // GET - Listar documentos da reserva
 export async function GET(
@@ -67,7 +69,17 @@ export async function POST(
       include: {
         customer: true,
         equipment: true,
-        tenant: true,
+        tenant: {
+          select: {
+            name: true,
+            address: true,
+            phone: true,
+            email: true,
+            cnpj: true,
+            contractTemplate: true,
+            receiptTemplate: true,
+          },
+        },
         items: {
           include: {
             equipment: true,
@@ -101,42 +113,63 @@ export async function POST(
 
     let htmlContent = ""
 
+    // Preparar dados para o template customizável
+    const templateData: TemplateData = {
+      // Cliente
+      clienteNome: booking.customer.name,
+      clienteCpfCnpj: booking.customer.cpfCnpj || undefined,
+      clienteEmail: booking.customer.email || undefined,
+      clienteTelefone: booking.customer.phone || undefined,
+      clienteEndereco: booking.customer.address || undefined,
+
+      // Reserva
+      reservaNumero: `RES-${booking.id.slice(-8).toUpperCase()}`,
+      dataInicio: formatDate(booking.startDate),
+      dataFim: formatDate(booking.endDate),
+      totalDias: totalDays,
+      valorTotal: booking.totalPrice,
+
+      // Equipamentos
+      equipamentos: booking.items.length > 0
+        ? booking.items.map((item) => ({
+            nome: item.equipment.name,
+            descricao: item.equipment.description || undefined,
+            quantidade: item.quantity,
+            valorDiaria: item.equipment.pricePerDay,
+            valorTotal: item.totalPrice,
+          }))
+        : [{
+            nome: mainEquipment.name,
+            descricao: mainEquipment.description || undefined,
+            quantidade: 1,
+            valorDiaria: mainEquipment.pricePerDay,
+            valorTotal: booking.totalPrice,
+          }],
+
+      // Empresa
+      empresaNome: booking.tenant.name,
+      empresaCnpj: booking.tenant.cnpj || undefined,
+      empresaEndereco: booking.tenant.address || undefined,
+      empresaTelefone: booking.tenant.phone || undefined,
+      empresaEmail: booking.tenant.email || undefined,
+    }
+
     if (type === "CONTRACT") {
-      htmlContent = pdfTemplates.contract({
-        tenantName: booking.tenant.name,
-        tenantAddress: booking.tenant.address || undefined,
-        tenantPhone: booking.tenant.phone || undefined,
-        tenantEmail: booking.tenant.email || undefined,
-        customerName: booking.customer.name,
-        customerDocument: booking.customer.cpfCnpj || undefined,
-        customerPhone: booking.customer.phone || undefined,
-        customerEmail: booking.customer.email || undefined,
-        customerAddress: booking.customer.address || undefined,
-        equipmentName: mainEquipment.name,
-        equipmentDescription: mainEquipment.description || undefined,
-        startDate: formatDate(booking.startDate),
-        endDate: formatDate(booking.endDate),
-        totalPrice: booking.totalPrice,
-        pricePerDay: mainEquipment.pricePerDay,
-        totalDays,
-        bookingId: booking.id,
-        createdAt: formatDate(new Date()),
-      })
+      // Verificar se tem template customizado
+      if (booking.tenant.contractTemplate) {
+        htmlContent = processTemplate(booking.tenant.contractTemplate, templateData)
+      } else {
+        // Usar template padrão do sistema de variáveis
+        htmlContent = processTemplate(DEFAULT_CONTRACT_TEMPLATE, templateData)
+      }
     } else if (type === "RECEIPT") {
-      htmlContent = pdfTemplates.receipt({
-        tenantName: booking.tenant.name,
-        tenantAddress: booking.tenant.address || undefined,
-        tenantPhone: booking.tenant.phone || undefined,
-        customerName: booking.customer.name,
-        customerDocument: booking.customer.cpfCnpj || undefined,
-        equipmentName: mainEquipment.name,
-        startDate: formatDate(booking.startDate),
-        endDate: formatDate(booking.endDate),
-        totalPrice: booking.totalPrice,
-        bookingId: booking.id,
-        paymentDate: formatDate(new Date()),
-        paymentMethod: undefined,
-      })
+      // Verificar se tem template customizado
+      if (booking.tenant.receiptTemplate) {
+        htmlContent = processTemplate(booking.tenant.receiptTemplate, templateData)
+      } else {
+        // Usar template padrão do sistema de variáveis
+        htmlContent = processTemplate(DEFAULT_RECEIPT_TEMPLATE, templateData)
+      }
     }
 
     // Retornar o HTML para renderização no cliente
