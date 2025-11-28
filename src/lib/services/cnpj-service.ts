@@ -1,6 +1,8 @@
 /**
- * Serviço de consulta de CNPJ usando a BrasilAPI (gratuita)
- * https://brasilapi.com.br/docs#tag/CNPJ
+ * Serviço de consulta de CNPJ com fallback para múltiplas APIs
+ * APIs utilizadas (em ordem de prioridade):
+ * 1. BrasilAPI (https://brasilapi.com.br/docs#tag/CNPJ)
+ * 2. ReceitaWS (https://receitaws.com.br)
  */
 
 export interface CNPJData {
@@ -63,54 +65,31 @@ export function isValidCNPJFormat(cnpj: string): boolean {
 }
 
 /**
- * Consulta dados de CNPJ na BrasilAPI
- * @param cnpj - CNPJ com ou sem formatação
- * @returns Dados da empresa ou erro
+ * Consulta CNPJ usando a BrasilAPI
  */
-export async function consultarCNPJ(cnpj: string): Promise<CNPJResult> {
-  const cleanedCNPJ = cleanCNPJ(cnpj)
-
-  if (!isValidCNPJFormat(cleanedCNPJ)) {
-    return {
-      error: true,
-      message: "CNPJ deve ter 14 dígitos",
-      code: "INVALID_FORMAT",
-    }
-  }
-
+async function consultarBrasilAPI(cleanedCNPJ: string): Promise<CNPJResult | null> {
   try {
-    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCNPJ}`, {
+    const url = `https://brasilapi.com.br/api/cnpj/v1/${cleanedCNPJ}`
+    console.log("[CNPJ Service] Tentando BrasilAPI:", url)
+
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     })
 
+    console.log("[CNPJ Service] BrasilAPI status:", response.status)
+
     if (!response.ok) {
-      if (response.status === 404) {
-        return {
-          error: true,
-          message: "CNPJ não encontrado na base de dados",
-          code: "NOT_FOUND",
-        }
-      }
-      if (response.status === 429) {
-        return {
-          error: true,
-          message: "Limite de requisições excedido. Tente novamente em alguns segundos.",
-          code: "RATE_LIMIT",
-        }
-      }
-      return {
-        error: true,
-        message: `Erro ao consultar CNPJ: ${response.statusText}`,
-        code: "API_ERROR",
-      }
+      console.log("[CNPJ Service] BrasilAPI falhou, status:", response.status)
+      return null // Tentar próxima API
     }
 
     const data = await response.json()
+    console.log("[CNPJ Service] BrasilAPI sucesso!")
 
-    // Mapear resposta da BrasilAPI para nosso formato
     return {
       cnpj: cleanedCNPJ,
       razaoSocial: data.razao_social || "",
@@ -157,12 +136,117 @@ export async function consultarCNPJ(cnpj: string): Promise<CNPJResult> {
         : [],
     }
   } catch (error) {
-    console.error("Erro ao consultar CNPJ:", error)
+    console.error("[CNPJ Service] Erro BrasilAPI:", error)
+    return null
+  }
+}
+
+/**
+ * Consulta CNPJ usando a ReceitaWS (fallback)
+ */
+async function consultarReceitaWS(cleanedCNPJ: string): Promise<CNPJResult | null> {
+  try {
+    const url = `https://receitaws.com.br/v1/cnpj/${cleanedCNPJ}`
+    console.log("[CNPJ Service] Tentando ReceitaWS:", url)
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    })
+
+    console.log("[CNPJ Service] ReceitaWS status:", response.status)
+
+    if (!response.ok) {
+      console.log("[CNPJ Service] ReceitaWS falhou, status:", response.status)
+      return null
+    }
+
+    const data = await response.json()
+
+    // ReceitaWS retorna status "ERROR" dentro do JSON quando não encontra
+    if (data.status === "ERROR") {
+      console.log("[CNPJ Service] ReceitaWS retornou erro:", data.message)
+      return null
+    }
+
+    console.log("[CNPJ Service] ReceitaWS sucesso!")
+
+    return {
+      cnpj: cleanedCNPJ,
+      razaoSocial: data.nome || "",
+      nomeFantasia: data.fantasia || null,
+      situacaoCadastral: data.situacao || "Desconhecida",
+      dataSituacaoCadastral: data.data_situacao || null,
+      dataAbertura: data.abertura || null,
+      naturezaJuridica: data.natureza_juridica || null,
+      porte: data.porte || null,
+      capitalSocial: data.capital_social ? parseFloat(data.capital_social.replace(/\./g, "").replace(",", ".")) : null,
+      cnaePrincipal: data.atividade_principal?.[0] ? {
+        codigo: data.atividade_principal[0].code?.replace(/[^\d]/g, "") || "",
+        descricao: data.atividade_principal[0].text || "",
+      } : null,
+      cnaesSecundarios: Array.isArray(data.atividades_secundarias)
+        ? data.atividades_secundarias.map((cnae: { code: string; text: string }) => ({
+            codigo: cnae.code?.replace(/[^\d]/g, "") || "",
+            descricao: cnae.text || "",
+          }))
+        : [],
+      endereco: {
+        logradouro: data.logradouro || null,
+        numero: data.numero || null,
+        complemento: data.complemento || null,
+        bairro: data.bairro || null,
+        cidade: data.municipio || null,
+        uf: data.uf || null,
+        cep: data.cep?.replace(/[^\d]/g, "") || null,
+        codigoMunicipio: null, // ReceitaWS não retorna código IBGE
+      },
+      telefones: data.telefone ? [data.telefone.replace(/\D/g, "")] : [],
+      email: data.email || null,
+      socios: Array.isArray(data.qsa)
+        ? data.qsa.map((socio: { nome: string; qual: string }) => ({
+            nome: socio.nome,
+            qualificacao: socio.qual || "",
+          }))
+        : [],
+    }
+  } catch (error) {
+    console.error("[CNPJ Service] Erro ReceitaWS:", error)
+    return null
+  }
+}
+
+export async function consultarCNPJ(cnpj: string): Promise<CNPJResult> {
+  const cleanedCNPJ = cleanCNPJ(cnpj)
+
+  if (!isValidCNPJFormat(cleanedCNPJ)) {
     return {
       error: true,
-      message: "Erro de conexão ao consultar CNPJ. Verifique sua internet.",
-      code: "NETWORK_ERROR",
+      message: "CNPJ deve ter 14 dígitos",
+      code: "INVALID_FORMAT",
     }
+  }
+
+  console.log("[CNPJ Service] Iniciando consulta CNPJ:", cleanedCNPJ)
+
+  // Tentar BrasilAPI primeiro
+  let result = await consultarBrasilAPI(cleanedCNPJ)
+  if (result) return result
+
+  // Fallback para ReceitaWS
+  console.log("[CNPJ Service] Tentando fallback ReceitaWS...")
+  result = await consultarReceitaWS(cleanedCNPJ)
+  if (result) return result
+
+  // Se todas as APIs falharam
+  console.log("[CNPJ Service] Todas as APIs falharam")
+  return {
+    error: true,
+    message: "Não foi possível consultar o CNPJ. Todas as APIs estão indisponíveis.",
+    code: "ALL_APIS_FAILED",
   }
 }
 

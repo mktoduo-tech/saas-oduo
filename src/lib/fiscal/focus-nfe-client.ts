@@ -114,19 +114,27 @@ export class FocusNfeClient {
    * @param payload - Dados da NFS-e
    */
   async emitirNfse(ref: string, payload: NfsePayload): Promise<FocusNfeResponse> {
-    // Detectar se payload já está em formato Nacional (DPS) ou Municipal
-    const isPayloadNacional = !!(payload as any).codigo_tributacao_nacional_iss
-    const codigoNacional = isPayloadNacional
-      ? (payload as any).codigo_tributacao_nacional_iss
-      : (payload as any).servico?.codigo_tributacao_nacional_iss
-    const isNacional = codigoNacional?.startsWith('99')
+    // Detectar se payload é Municipal ou Nacional
+    // Municipal: tem servico.item_lista_servico (código LC 116, ex: 010501)
+    // Nacional: tem codigo_tributacao_nacional_iss no root ou servico (código começa com 99)
 
-    console.log(`[Focus NFe] Formato do payload: ${isPayloadNacional ? 'NACIONAL (DPS)' : 'MUNICIPAL'}`)
+    const hasItemListaServico = !!(payload as any).servico?.item_lista_servico
+    const isPayloadNacionalDPS = !!(payload as any).codigo_tributacao_nacional_iss
+    const codigoNacional = (payload as any).servico?.codigo_tributacao_nacional_iss
+
+    // É Municipal se tem item_lista_servico
+    // É Nacional se tem codigo_tributacao_nacional_iss (no root ou servico com código começando com 99)
+    const isNacional = isPayloadNacionalDPS || (codigoNacional?.startsWith('99') && !hasItemListaServico)
+
+    console.log(`[Focus NFe] Detecção de sistema:`)
+    console.log(`[Focus NFe]   - hasItemListaServico: ${hasItemListaServico}`)
+    console.log(`[Focus NFe]   - isPayloadNacionalDPS: ${isPayloadNacionalDPS}`)
+    console.log(`[Focus NFe]   - codigoNacional: ${codigoNacional}`)
     console.log(`[Focus NFe] Usando endpoint: ${isNacional ? '/nfsen (Nacional)' : '/nfse (Municipal)'}`)
 
     if (isNacional) {
       // Se payload já está em formato Nacional, usar direto. Senão, converter
-      const payloadNacional = isPayloadNacional ? payload : this.convertToNacionalPayload(payload)
+      const payloadNacional = isPayloadNacionalDPS ? payload : this.convertToNacionalPayload(payload)
       return this.emitirNfseNacional(ref, payloadNacional)
     } else {
       return this.emitirNfseMunicipal(ref, payload)
