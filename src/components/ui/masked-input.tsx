@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import InputMask from "react-input-mask"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 
@@ -17,38 +16,57 @@ export const masks = {
 
 export type MaskType = keyof typeof masks
 
+// Função para aplicar máscara
+function applyMask(value: string, mask: string): string {
+  const cleanValue = value.replace(/\D/g, "")
+  let maskedValue = ""
+  let valueIndex = 0
+
+  for (let i = 0; i < mask.length && valueIndex < cleanValue.length; i++) {
+    if (mask[i] === "9") {
+      maskedValue += cleanValue[valueIndex]
+      valueIndex++
+    } else {
+      maskedValue += mask[i]
+      // Se o próximo caractere do valor limpo corresponde ao caractere da máscara, pula
+      if (cleanValue[valueIndex] === mask[i]) {
+        valueIndex++
+      }
+    }
+  }
+
+  return maskedValue
+}
+
 interface MaskedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
   mask: string | MaskType
   value?: string
   onChange?: (value: string, event: React.ChangeEvent<HTMLInputElement>) => void
   onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void
-  maskChar?: string | null
-  alwaysShowMask?: boolean
 }
 
 const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
-  ({ mask, value, onChange, onBlur, className, maskChar = "_", alwaysShowMask = false, ...props }, ref) => {
+  ({ mask, value = "", onChange, onBlur, className, ...props }, ref) => {
     // Resolve a máscara se for um tipo predefinido
     const resolvedMask = mask in masks ? masks[mask as MaskType] : mask
 
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value
+      const maskedValue = applyMask(rawValue, resolvedMask)
+      onChange?.(maskedValue, e)
+    }
+
+    const displayValue = value ? applyMask(value, resolvedMask) : ""
+
     return (
-      <InputMask
-        mask={resolvedMask}
-        value={value}
-        onChange={(e) => onChange?.(e.target.value, e)}
+      <Input
+        {...props}
+        ref={ref}
+        value={displayValue}
+        onChange={handleChange}
         onBlur={onBlur}
-        maskChar={maskChar}
-        alwaysShowMask={alwaysShowMask}
-      >
-        {(inputProps: React.InputHTMLAttributes<HTMLInputElement>) => (
-          <Input
-            {...inputProps}
-            {...props}
-            ref={ref}
-            className={cn(className)}
-          />
-        )}
-      </InputMask>
+        className={cn(className)}
+      />
     )
   }
 )

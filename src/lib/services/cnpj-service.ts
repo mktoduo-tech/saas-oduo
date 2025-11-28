@@ -1,7 +1,6 @@
 /**
- * Serviço de consulta de CNPJ usando a API OpenCNPJ (gratuita)
- * Limite: 50 requisições por segundo
- * Dados atualizados mensalmente
+ * Serviço de consulta de CNPJ usando a BrasilAPI (gratuita)
+ * https://brasilapi.com.br/docs#tag/CNPJ
  */
 
 export interface CNPJData {
@@ -64,7 +63,7 @@ export function isValidCNPJFormat(cnpj: string): boolean {
 }
 
 /**
- * Consulta dados de CNPJ na API OpenCNPJ
+ * Consulta dados de CNPJ na BrasilAPI
  * @param cnpj - CNPJ com ou sem formatação
  * @returns Dados da empresa ou erro
  */
@@ -80,7 +79,7 @@ export async function consultarCNPJ(cnpj: string): Promise<CNPJResult> {
   }
 
   try {
-    const response = await fetch(`https://api.opencnpj.org/${cleanedCNPJ}`, {
+    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanedCNPJ}`, {
       method: "GET",
       headers: {
         "Accept": "application/json",
@@ -111,47 +110,49 @@ export async function consultarCNPJ(cnpj: string): Promise<CNPJResult> {
 
     const data = await response.json()
 
-    // Mapear resposta da API para nosso formato
+    // Mapear resposta da BrasilAPI para nosso formato
     return {
       cnpj: cleanedCNPJ,
       razaoSocial: data.razao_social || "",
       nomeFantasia: data.nome_fantasia || null,
-      situacaoCadastral: data.situacao_cadastral || "Desconhecida",
+      situacaoCadastral: data.descricao_situacao_cadastral || "Desconhecida",
       dataSituacaoCadastral: data.data_situacao_cadastral || null,
       dataAbertura: data.data_inicio_atividade || null,
       naturezaJuridica: data.natureza_juridica || null,
-      porte: data.porte_empresa || null,
+      porte: data.porte || null,
       capitalSocial: data.capital_social ? parseFloat(data.capital_social) : null,
-      cnaePrincipal: data.cnae_principal ? {
-        codigo: data.cnae_principal,
-        descricao: data.cnae_principal_descricao || "",
+      cnaePrincipal: data.cnae_fiscal ? {
+        codigo: String(data.cnae_fiscal),
+        descricao: data.cnae_fiscal_descricao || "",
       } : null,
       cnaesSecundarios: Array.isArray(data.cnaes_secundarios)
-        ? data.cnaes_secundarios.map((cnae: { codigo: string; descricao: string }) => ({
-            codigo: cnae.codigo,
-            descricao: cnae.descricao,
-          }))
+        ? data.cnaes_secundarios
+            .filter((cnae: { codigo: number }) => cnae.codigo > 0)
+            .map((cnae: { codigo: number; descricao: string }) => ({
+              codigo: String(cnae.codigo),
+              descricao: cnae.descricao || "",
+            }))
         : [],
       endereco: {
-        logradouro: data.logradouro || null,
+        logradouro: data.descricao_tipo_de_logradouro && data.logradouro
+          ? `${data.descricao_tipo_de_logradouro} ${data.logradouro}`
+          : data.logradouro || null,
         numero: data.numero || null,
         complemento: data.complemento || null,
         bairro: data.bairro || null,
         cidade: data.municipio || null,
         uf: data.uf || null,
         cep: data.cep || null,
-        codigoMunicipio: data.codigo_municipio || null,
+        codigoMunicipio: data.codigo_municipio_ibge ? String(data.codigo_municipio_ibge) : null,
       },
-      telefones: data.telefones
-        ? (Array.isArray(data.telefones)
-            ? data.telefones.map((t: { ddd?: string; numero?: string }) => `${t.ddd || ""}${t.numero || ""}`.trim())
-            : [data.telefones])
-        : [],
+      telefones: [data.ddd_telefone_1, data.ddd_telefone_2]
+        .filter(Boolean)
+        .map(t => t.replace(/\D/g, "")),
       email: data.email || null,
-      socios: Array.isArray(data.socios)
-        ? data.socios.map((socio: { nome: string; qualificacao?: string }) => ({
-            nome: socio.nome,
-            qualificacao: socio.qualificacao || "",
+      socios: Array.isArray(data.qsa)
+        ? data.qsa.map((socio: { nome_socio: string; qualificacao_socio?: string }) => ({
+            nome: socio.nome_socio,
+            qualificacao: socio.qualificacao_socio || "",
           }))
         : [],
     }

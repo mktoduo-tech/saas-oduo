@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
 
 // GET - Detalhes do site
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ customerId: string; siteId: string }> }
+  { params }: { params: Promise<{ id: string; siteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -16,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const { customerId, siteId } = await params
+    const { id: customerId, siteId } = await params
 
     // Verificar se o cliente pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -53,15 +51,13 @@ export async function GET(
       { error: "Erro ao buscar local" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
 // PUT - Atualizar site
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ customerId: string; siteId: string }> }
+  { params }: { params: Promise<{ id: string; siteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -70,7 +66,7 @@ export async function PUT(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const { customerId, siteId } = await params
+    const { id: customerId, siteId } = await params
 
     // Verificar se o cliente pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -147,15 +143,13 @@ export async function PUT(
       { error: "Erro ao atualizar local" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
 // DELETE - Desativar site (soft delete)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ customerId: string; siteId: string }> }
+  { params }: { params: Promise<{ id: string; siteId: string }> }
 ) {
   try {
     const session = await auth()
@@ -164,7 +158,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const { customerId, siteId } = await params
+    const { id: customerId, siteId } = await params
 
     // Verificar se o cliente pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -222,7 +216,5 @@ export async function DELETE(
       { error: "Erro ao excluir local" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

@@ -727,10 +727,9 @@ export class NfseService {
       console.log('[NFS-e Nacional] ✅ Endereço do tomador adicionado')
     }
 
-    // Adicionar alíquota se configurada
-    if (tenant.fiscalConfig?.aliquotaIss) {
-      payload.percentual_aliquota_relativa_municipio = tenant.fiscalConfig.aliquotaIss
-    }
+    // NOTA: Não informar alíquota quando há regime especial de tributação (E0604)
+    // O campo percentual_aliquota_relativa_municipio NÃO deve ser enviado para ME/EPP
+    // pois já estamos informando regime_especial_tributacao = 6
 
     console.log('[NFS-e Nacional] Payload DPS construído:', {
       serie_dps: payload.serie_dps,
@@ -751,7 +750,7 @@ export class NfseService {
   private isMunicipioNacional(codigoMunicipio: string): boolean {
     // Municípios que já migraram para Sistema Nacional NFS-e
     const municipiosNacionais = [
-      '3509502', // Campinas - SP (Nacional obrigatório a partir de 01/01/2026, pode testar em HOMOLOGACAO)
+      // '3509502', // Campinas - SP - DESABILITADO: Nacional só obrigatório a partir de 01/01/2026
       '3550308', // São Paulo - SP
       '3304557', // Rio de Janeiro - RJ
       '4106902', // Curitiba - PR
@@ -832,13 +831,8 @@ export class NfseService {
       }
     }
 
-    // Verifica se existe mapeamento específico para Nacional (mesmo sem forçar)
-    if (municipalToNacionalMapping[cleanCode]) {
-      const nacionalCode = municipalToNacionalMapping[cleanCode]
-      console.warn(`[NFS-e] ⚠️  WORKAROUND TEMPORÁRIO: Código Municipal ${cleanCode} mapeado para Nacional ${nacionalCode}`)
-      console.warn(`[NFS-e] ⚠️  NT 005/2025 pendente - código correto seria 990401 (Locação de Bens Móveis)`)
-      return { isNacional: true, code: nacionalCode }
-    }
+    // NOTA: Só converter para Nacional quando forcaNacional=true
+    // Se o município não usa Nacional, manter código Municipal original
 
     // Detecta se é código Nacional (começa com 99 ou tem 6 dígitos sem pontos)
 

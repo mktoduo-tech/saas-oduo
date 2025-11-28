@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-
-const prisma = new PrismaClient()
 
 // GET - Listar sites do cliente
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ customerId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -16,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const { customerId } = await params
+    const { id: customerId } = await params
 
     // Verificar se o cliente pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -56,15 +54,13 @@ export async function GET(
       { error: "Erro ao buscar locais" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
 // POST - Criar site
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ customerId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -73,7 +69,7 @@ export async function POST(
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const { customerId } = await params
+    const { id: customerId } = await params
 
     // Verificar se o cliente pertence ao tenant
     const customer = await prisma.customer.findFirst({
@@ -143,7 +139,5 @@ export async function POST(
       { error: "Erro ao criar local" },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
