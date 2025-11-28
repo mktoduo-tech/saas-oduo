@@ -53,7 +53,7 @@ export async function PUT(
   try {
     const session = await auth()
 
-    if (!session?.user?.tenantId) {
+    if (!session?.user?.tenantId || !session?.user?.id) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
@@ -61,9 +61,18 @@ export async function PUT(
     const body = await request.json()
     const { name, description, category, pricePerDay, pricePerHour, quantity, status, images, rentalPeriods } = body
 
-    // Verificar se equipamento existe e pertence ao tenant
+    // Verificar se equipamento existe e pertence ao tenant (incluindo campos de estoque)
     const existingEquipment = await prisma.equipment.findFirst({
       where: { id, tenantId: session.user.tenantId },
+      select: {
+        id: true,
+        tenantId: true,
+        totalStock: true,
+        availableStock: true,
+        reservedStock: true,
+        maintenanceStock: true,
+        damagedStock: true,
+      },
     })
 
     if (!existingEquipment) {
@@ -78,6 +87,53 @@ export async function PUT(
     if (rentalPeriods?.length) {
       const sortedPeriods = [...rentalPeriods].sort((a: { days: number }, b: { days: number }) => a.days - b.days)
       calculatedPricePerDay = sortedPeriods[0].price / sortedPeriods[0].days
+    }
+
+    // Verificar se quantity está sendo alterado e sincronizar com estoque
+    let stockUpdate: Record<string, number> = {}
+    let stockMovementData: {
+      type: "PURCHASE" | "ADJUSTMENT"
+      quantity: number
+      previousStock: number
+      newStock: number
+      reason: string
+    } | null = null
+
+    if (quantity !== undefined) {
+      const newQuantity = parseInt(quantity)
+      const currentTotalStock = existingEquipment.totalStock
+      const diff = newQuantity - currentTotalStock
+
+      if (diff !== 0) {
+        // Verificar se é possível reduzir o estoque
+        const minRequired = existingEquipment.reservedStock + existingEquipment.maintenanceStock + existingEquipment.damagedStock
+        if (newQuantity < minRequired) {
+          return NextResponse.json(
+            {
+              error: `Não é possível reduzir para ${newQuantity} unidades. Mínimo necessário: ${minRequired} (${existingEquipment.reservedStock} reservados, ${existingEquipment.maintenanceStock} em manutenção, ${existingEquipment.damagedStock} danificados)`
+            },
+            { status: 400 }
+          )
+        }
+
+        // Calcular novo availableStock
+        const newAvailableStock = newQuantity - existingEquipment.reservedStock - existingEquipment.maintenanceStock - existingEquipment.damagedStock
+
+        stockUpdate = {
+          totalStock: newQuantity,
+          availableStock: newAvailableStock,
+        }
+
+        stockMovementData = {
+          type: diff > 0 ? "PURCHASE" : "ADJUSTMENT",
+          quantity: Math.abs(diff),
+          previousStock: currentTotalStock,
+          newStock: newQuantity,
+          reason: diff > 0
+            ? `Aumento de estoque: ${currentTotalStock} → ${newQuantity} (+${diff})`
+            : `Redução de estoque: ${currentTotalStock} → ${newQuantity} (${diff})`,
+        }
+      }
     }
 
     // Atualizar equipamento e períodos em uma transação
@@ -100,6 +156,22 @@ export async function PUT(
         }
       }
 
+      // Registrar movimentação de estoque se houve alteração
+      if (stockMovementData) {
+        await tx.stockMovement.create({
+          data: {
+            equipmentId: id,
+            type: stockMovementData.type,
+            quantity: stockMovementData.quantity,
+            previousStock: stockMovementData.previousStock,
+            newStock: stockMovementData.newStock,
+            reason: stockMovementData.reason,
+            userId: session.user.id,
+            tenantId: session.user.tenantId,
+          },
+        })
+      }
+
       // Atualizar equipamento
       return tx.equipment.update({
         where: { id },
@@ -109,9 +181,10 @@ export async function PUT(
           ...(category && { category }),
           ...(calculatedPricePerDay !== undefined && { pricePerDay: calculatedPricePerDay }),
           ...(pricePerHour !== undefined && { pricePerHour: pricePerHour ? parseFloat(pricePerHour) : null }),
-          ...(quantity !== undefined && { quantity }),
+          ...(quantity !== undefined && { quantity: parseInt(quantity) }),
           ...(status && { status }),
           ...(images && { images }),
+          ...stockUpdate,
         },
         include: {
           rentalPeriods: {

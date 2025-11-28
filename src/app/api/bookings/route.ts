@@ -68,8 +68,8 @@ const createBookingSchema = z.object({
   totalPrice: z.number().optional(),
   // Novo sistema multi-item
   items: z.array(bookingItemSchema).optional(),
-  // Status é ignorado (sempre cria como PENDING), mas aceito para compatibilidade com frontend
-  status: z.string().optional(),
+  // Status inicial do orçamento (default: PENDING)
+  status: z.enum(["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"]).optional(),
 })
 
 // POST - Criar reserva
@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
       equipmentId,
       totalPrice,
       items,
+      status,
     } = validation.data
 
     // Verificar se o cliente existe e pertence ao tenant
@@ -287,7 +288,7 @@ export async function POST(request: NextRequest) {
           endTime,
           totalPrice: finalTotalPrice,
           notes,
-          status: "PENDING",
+          status: status || "PENDING",
           // Manter equipmentId legado se for reserva simples
           equipmentId: isLegacyBooking ? equipmentId : null,
         },

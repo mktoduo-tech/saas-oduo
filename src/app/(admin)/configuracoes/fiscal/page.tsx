@@ -462,6 +462,7 @@ export default function ConfiguracaoFiscalPage() {
                   <Input
                     id="focusNfeToken"
                     type="password"
+                    autoComplete="new-password"
                     placeholder={
                       config.focusNfeConfigured
                         ? "••••••••••••••••"
