@@ -221,11 +221,13 @@ export class FocusNfeClient {
    * @param ref - Referência da NFS-e
    */
   async consultarNfse(ref: string): Promise<FocusNfeResponse> {
-    // Tenta primeiro o endpoint nacional, depois o municipal
+    // Tenta primeiro o endpoint municipal (maioria dos casos), depois o nacional
     try {
-      return await this.consultarNfseNacional(ref)
+      const result = await this.consultarNfseMunicipal(ref)
+      return result
     } catch (error) {
-      return await this.consultarNfseMunicipal(ref)
+      // Se deu erro no municipal (404, etc), tenta o nacional
+      return await this.consultarNfseNacional(ref)
     }
   }
 
