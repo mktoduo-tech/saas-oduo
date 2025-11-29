@@ -190,6 +190,11 @@ export default function EditarEquipamentoPage({
         <Button variant="secondary" size="sm">
           Editar
         </Button>
+        <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
+          <Button variant="ghost" size="sm">
+            Unidades/Serial
+          </Button>
+        </Link>
         <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
           <Button variant="ghost" size="sm">
             Financeiro

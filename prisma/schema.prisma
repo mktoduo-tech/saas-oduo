@@ -91,6 +91,7 @@ model User {
   autoLoginTokens AutoLoginToken[]
   stockMovements StockMovement[]
   verificationTokens VerificationToken[]
+  modulePermissions UserModulePermission[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -141,6 +142,39 @@ enum Role {
   VIEWER       // Visualizador - apenas leitura
 }
 
+// Permissões de módulo por usuário
+model UserModulePermission {
+  id          String       @id @default(cuid())
+
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  module      SystemModule
+  canView     Boolean      @default(false)
+  canCreate   Boolean      @default(false)
+  canEdit     Boolean      @default(false)
+  canDelete   Boolean      @default(false)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, module])
+  @@index([userId])
+}
+
+enum SystemModule {
+  DASHBOARD
+  EQUIPAMENTOS
+  CLIENTES
+  RESERVAS
+  FINANCEIRO
+  RELATORIOS
+  USUARIOS
+  CONFIGURACOES
+  INTEGRACOES
+  MANUTENCAO
+}
+
 // Equipamento
 model Equipment {
   id            String   @id @default(cuid())
@@ -176,6 +210,10 @@ model Equipment {
   documents     EquipmentDocument[]
   stockMovements StockMovement[]
   rentalPeriods RentalPeriod[]
+
+  // Unidades individuais (cada equipamento físico)
+  units         EquipmentUnit[]
+  maintenanceSchedules MaintenanceSchedule[]
 
   // Transações Financeiras
   financialTransactions   FinancialTransaction[]
@@ -328,8 +366,30 @@ model Booking {
   startTime       String?
   endTime         String?
 
+  // Valores e cálculos
+  subtotal        Float?            // Valor antes do desconto e frete
   totalPrice      Float
   status          BookingStatus @default(PENDING)
+
+  // Sistema de Desconto
+  discountType    DiscountType?     // PERCENTAGE ou FIXED
+  discountValue   Float?            // Valor do desconto (% ou R$)
+  discountReason  String?           // Justificativa do desconto
+
+  // Validade do Orçamento
+  validUntil      DateTime?         // Data de validade do orçamento
+  validityNotificationSent Boolean @default(false)
+
+  // Sistema de Frete
+  freightType     FreightType?      // FREE, FIXED, BY_REGION
+  freightValue    Float?            // Valor do frete
+  freightRegionId String?
+  freightRegion   FreightRegion?    @relation(fields: [freightRegionId], references: [id])
+
+  // Sistema de Multas
+  cancellationFeePercent Float?     // % multa por cancelamento
+  lateFeePercent  Float?            // % multa por atraso (por dia)
+  actualReturnDate DateTime?        // Data real de devolução
 
   // Campo legado - manter para compatibilidade com reservas existentes
   equipmentId     String?
@@ -361,6 +421,7 @@ model Booking {
   items           BookingItem[]
   stockMovements  StockMovement[]
   invoices        Invoice[]
+  fees            BookingFee[]      // Multas aplicadas
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -368,6 +429,7 @@ model Booking {
   @@index([tenantId, status])
   @@index([tenantId, status, startDate])
   @@index([equipmentId, startDate, endDate])
+  @@index([validUntil])
 }
 
 enum BookingStatus {
@@ -375,6 +437,58 @@ enum BookingStatus {
   CONFIRMED
   COMPLETED
   CANCELLED
+  EXPIRED     // Orçamento vencido
+}
+
+enum DiscountType {
+  PERCENTAGE  // Desconto em porcentagem
+  FIXED       // Desconto em valor fixo (R$)
+}
+
+enum FreightType {
+  FREE        // Frete grátis
+  FIXED       // Valor fixo
+  BY_REGION   // Por região/tabela
+}
+
+// Região de Frete
+model FreightRegion {
+  id          String    @id @default(cuid())
+  name        String    // "Zona Sul", "Interior", etc.
+  cities      String[]  // Lista de cidades
+  price       Float     // Valor do frete
+
+  tenantId    String
+  bookings    Booking[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// Registro de Multas aplicadas
+model BookingFee {
+  id          String    @id @default(cuid())
+
+  bookingId   String
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  type        FeeType   // CANCELLATION ou LATE_RETURN
+  percent     Float     // Porcentagem aplicada
+  baseValue   Float     // Valor base para cálculo
+  amount      Float     // Valor calculado da multa
+  daysLate    Int?      // Dias de atraso (se aplicável)
+
+  createdAt   DateTime  @default(now())
+
+  @@index([bookingId])
+}
+
+enum FeeType {
+  CANCELLATION  // Multa por cancelamento
+  LATE_RETURN   // Multa por atraso na devolução
 }
 
 // Registro de Atividades (Auditoria)
@@ -546,6 +660,9 @@ model BookingItem {
   damagedQty      Int       @default(0)    // Quantidade devolvida com avaria
 
   notes           String?   @db.Text
+
+  // Unidades específicas vinculadas a este item
+  units           BookingItemUnit[]
 
   createdAt       DateTime  @default(now())
 
@@ -842,6 +959,146 @@ enum PaymentStatus {
   OVERDUE           // Vencido
   FAILED            // Falhou
   REFUNDED          // Estornado
+}
+
+// ============================================
+// UNIDADES INDIVIDUAIS DE EQUIPAMENTOS (Serial Numbers)
+// ============================================
+
+// Unidade física de um equipamento (cada item com número de série)
+model EquipmentUnit {
+  id              String     @id @default(cuid())
+
+  equipmentId     String
+  equipment       Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  serialNumber    String     // Número de série único
+  internalCode    String?    // Código interno da empresa
+  status          UnitStatus @default(AVAILABLE)
+
+  // Dados de aquisição
+  acquisitionDate DateTime?
+  acquisitionCost Float?
+  warrantyExpiry  DateTime?
+
+  notes           String?    @db.Text
+
+  // Relacionamentos
+  maintenances    UnitMaintenance[]
+  documents       UnitDocument[]
+  bookingUnits    BookingItemUnit[]
+
+  tenantId        String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([tenantId, serialNumber])
+  @@index([equipmentId])
+  @@index([tenantId, status])
+}
+
+enum UnitStatus {
+  AVAILABLE     // Disponível para locação
+  RENTED        // Alugado/Em uso
+  MAINTENANCE   // Em manutenção
+  DAMAGED       // Danificado
+  RETIRED       // Aposentado/Descartado
+}
+
+// Documento anexado a uma unidade específica
+model UnitDocument {
+  id            String       @id @default(cuid())
+  name          String
+  type          DocType
+  url           String
+  fileSize      Int?
+
+  unitId        String
+  unit          EquipmentUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  uploadedAt    DateTime     @default(now())
+
+  @@index([unitId])
+}
+
+// Vinculação entre BookingItem e unidades específicas
+model BookingItemUnit {
+  id              String        @id @default(cuid())
+
+  bookingItemId   String
+  bookingItem     BookingItem   @relation(fields: [bookingItemId], references: [id], onDelete: Cascade)
+
+  unitId          String
+  unit            EquipmentUnit @relation(fields: [unitId], references: [id])
+
+  deliveredAt     DateTime?     // Quando foi entregue
+  returnedAt      DateTime?     // Quando foi devolvido
+  condition       String?       // Condição na devolução
+
+  @@unique([bookingItemId, unitId])
+  @@index([unitId])
+}
+
+// ============================================
+// SISTEMA DE MANUTENÇÃO
+// ============================================
+
+// Registro de manutenção de uma unidade
+model UnitMaintenance {
+  id              String            @id @default(cuid())
+
+  unitId          String
+  unit            EquipmentUnit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  type            MaintenanceType
+  description     String            @db.Text
+  scheduledDate   DateTime          // Data programada
+  completedDate   DateTime?         // Data de conclusão
+  cost            Float?            // Custo da manutenção
+  vendor          String?           // Fornecedor/técnico
+  notes           String?           @db.Text
+  status          MaintenanceStatus @default(SCHEDULED)
+
+  notificationSent Boolean          @default(false)
+
+  tenantId        String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([unitId])
+  @@index([scheduledDate])
+  @@index([status])
+  @@index([tenantId, status])
+}
+
+enum MaintenanceType {
+  PREVENTIVE    // Manutenção preventiva programada
+  CORRECTIVE    // Manutenção corretiva (quebrou)
+  INSPECTION    // Inspeção/vistoria
+}
+
+enum MaintenanceStatus {
+  SCHEDULED     // Agendada
+  IN_PROGRESS   // Em andamento
+  COMPLETED     // Concluída
+  CANCELLED     // Cancelada
+}
+
+// Template de manutenção preventiva por tipo de equipamento
+model MaintenanceSchedule {
+  id              String    @id @default(cuid())
+
+  equipmentId     String    // Aplica a este tipo de equipamento
+  equipment       Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  intervalDays    Int       // A cada X dias
+  description     String    // Descrição da manutenção
+
+  tenantId        String
+  createdAt       DateTime  @default(now())
+
+  @@unique([equipmentId, intervalDays])
+  @@index([tenantId])
 }
 
 // ============================================

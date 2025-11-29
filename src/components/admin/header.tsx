@@ -144,7 +144,7 @@ export function Header({ user, onMenuClick }: HeaderProps) {
     }
 
     const handleLogout = async () => {
-        await signOut({ callbackUrl: "/login" })
+        await signOut({ callbackUrl: "https://oduoloc.com.br/login" })
     }
 
     const handleNotificationClick = (notification: Notification) => {

@@ -213,7 +213,7 @@ export function SuperAdminLayoutClient({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-red-500 focus:text-red-500"
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={() => signOut({ callbackUrl: "https://oduoloc.com.br/login" })}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Sair

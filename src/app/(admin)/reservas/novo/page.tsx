@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ArrowLeft, Save, Calculator, MapPin, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Calculator, MapPin, Loader2, Percent, Truck, AlertTriangle, Calendar } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -41,6 +41,16 @@ const bookingSchema = z.object({
   totalPrice: z.number().min(0, "Preço deve ser maior ou igual a zero"),
   status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]),
   notes: z.string().optional(),
+  // Novos campos
+  discountType: z.enum(["PERCENTAGE", "FIXED"]).optional().nullable(),
+  discountValue: z.number().optional().nullable(),
+  discountReason: z.string().optional().nullable(),
+  validUntil: z.string().optional().nullable(),
+  freightType: z.enum(["FREE", "FIXED", "BY_REGION"]).optional().nullable(),
+  freightValue: z.number().optional().nullable(),
+  freightRegionId: z.string().optional().nullable(),
+  cancellationFeePercent: z.number().optional().nullable(),
+  lateFeePercent: z.number().optional().nullable(),
 })
 
 type BookingForm = z.infer<typeof bookingSchema>
@@ -73,19 +83,31 @@ interface CustomerSite {
   isDefault: boolean
 }
 
+interface FreightRegion {
+  id: string
+  name: string
+  price: number
+  cities: string[]
+}
+
 export default function NovaReservaPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [loadingCustomers, setLoadingCustomers] = useState(true)
   const [loadingEquipments, setLoadingEquipments] = useState(true)
   const [loadingSites, setLoadingSites] = useState(false)
+  const [loadingRegions, setLoadingRegions] = useState(true)
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [equipments, setEquipments] = useState<Equipment[]>([])
   const [customerSites, setCustomerSites] = useState<CustomerSite[]>([])
+  const [freightRegions, setFreightRegions] = useState<FreightRegion[]>([])
 
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
   const [calculatedPrice, setCalculatedPrice] = useState<number>(0)
+  const [subtotal, setSubtotal] = useState<number>(0)
+  const [discountAmount, setDiscountAmount] = useState<number>(0)
+  const [freightAmount, setFreightAmount] = useState<number>(0)
 
   // Dialogs de criação rápida
   const [newCustomerDialogOpen, setNewCustomerDialogOpen] = useState(false)
@@ -102,6 +124,12 @@ export default function NovaReservaPage() {
     defaultValues: {
       status: "PENDING",
       totalPrice: 0,
+      discountType: null,
+      discountValue: null,
+      freightType: null,
+      freightValue: null,
+      cancellationFeePercent: 10,
+      lateFeePercent: 2,
     },
   })
 
@@ -110,14 +138,20 @@ export default function NovaReservaPage() {
   const watchCustomerSiteId = watch("customerSiteId")
   const watchStartDate = watch("startDate")
   const watchEndDate = watch("endDate")
+  const watchDiscountType = watch("discountType")
+  const watchDiscountValue = watch("discountValue")
+  const watchFreightType = watch("freightType")
+  const watchFreightValue = watch("freightValue")
+  const watchFreightRegionId = watch("freightRegionId")
 
-  // Fetch inicial de clientes e equipamentos
+  // Fetch inicial de clientes, equipamentos e regiões de frete
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [customersRes, equipmentsRes] = await Promise.all([
+        const [customersRes, equipmentsRes, regionsRes] = await Promise.all([
           fetch("/api/customers"),
           fetch("/api/equipments?status=AVAILABLE"),
+          fetch("/api/freight-regions"),
         ])
 
         if (customersRes.ok) {
@@ -129,12 +163,18 @@ export default function NovaReservaPage() {
           const equipmentsData = await equipmentsRes.json()
           setEquipments(equipmentsData)
         }
+
+        if (regionsRes.ok) {
+          const regionsData = await regionsRes.json()
+          setFreightRegions(regionsData.regions || [])
+        }
       } catch (error) {
         console.error("Error fetching data:", error)
         toast.error("Erro ao carregar dados")
       } finally {
         setLoadingCustomers(false)
         setLoadingEquipments(false)
+        setLoadingRegions(false)
       }
     }
 
@@ -191,7 +231,7 @@ export default function NovaReservaPage() {
     }
   }, [watchEquipmentId, equipments])
 
-  // Calcular preço
+  // Calcular preço com desconto e frete
   useEffect(() => {
     if (selectedEquipment && watchStartDate && watchEndDate) {
       const start = new Date(watchStartDate)
@@ -201,15 +241,59 @@ export default function NovaReservaPage() {
       )
 
       if (days > 0) {
-        const price = days * selectedEquipment.pricePerDay
-        setCalculatedPrice(price)
-        setValue("totalPrice", price)
+        // Subtotal (equipamento x dias)
+        const equipmentTotal = days * selectedEquipment.pricePerDay
+        setSubtotal(equipmentTotal)
+
+        // Calcular desconto
+        let discount = 0
+        if (watchDiscountType && watchDiscountValue && watchDiscountValue > 0) {
+          if (watchDiscountType === "PERCENTAGE") {
+            discount = equipmentTotal * (watchDiscountValue / 100)
+          } else {
+            discount = watchDiscountValue
+          }
+        }
+        setDiscountAmount(discount)
+
+        // Calcular frete
+        let freight = 0
+        if (watchFreightType) {
+          if (watchFreightType === "FREE") {
+            freight = 0
+          } else if (watchFreightType === "FIXED" && watchFreightValue) {
+            freight = watchFreightValue
+          } else if (watchFreightType === "BY_REGION" && watchFreightRegionId) {
+            const region = freightRegions.find(r => r.id === watchFreightRegionId)
+            freight = region?.price || 0
+          }
+        }
+        setFreightAmount(freight)
+
+        // Total final
+        const total = Math.max(0, equipmentTotal - discount + freight)
+        setCalculatedPrice(total)
+        setValue("totalPrice", total)
       } else {
+        setSubtotal(0)
+        setDiscountAmount(0)
+        setFreightAmount(0)
         setCalculatedPrice(0)
         setValue("totalPrice", 0)
       }
     }
-  }, [selectedEquipment, watchStartDate, watchEndDate, setValue])
+  }, [
+    selectedEquipment,
+    watchStartDate,
+    watchEndDate,
+    watchDiscountType,
+    watchDiscountValue,
+    watchFreightType,
+    watchFreightValue,
+    watchFreightRegionId,
+    freightRegions,
+    setValue,
+  ])
 
   // Handlers para criação rápida
   const handleCustomerCreated = (customer: CreatedCustomer) => {
@@ -248,6 +332,16 @@ export default function NovaReservaPage() {
         ...data,
         notes: data.notes || null,
         customerSiteId: data.customerSiteId || null,
+        subtotal: subtotal,
+        discountType: data.discountType || null,
+        discountValue: data.discountValue || null,
+        discountReason: data.discountReason || null,
+        validUntil: data.validUntil || null,
+        freightType: data.freightType || null,
+        freightValue: freightAmount || null,
+        freightRegionId: data.freightRegionId || null,
+        cancellationFeePercent: data.cancellationFeePercent || null,
+        lateFeePercent: data.lateFeePercent || null,
       }
 
       const response = await fetch("/api/bookings", {
@@ -298,6 +392,12 @@ export default function NovaReservaPage() {
     description: s.street
       ? `${s.street}${s.number ? `, ${s.number}` : ""} - ${s.city}/${s.state}`
       : undefined,
+  }))
+
+  const regionOptions: SearchableSelectOption[] = freightRegions.map((r) => ({
+    value: r.id,
+    label: r.name,
+    description: formatCurrency(r.price),
   }))
 
   return (
@@ -414,16 +514,19 @@ export default function NovaReservaPage() {
           </CardContent>
         </Card>
 
-        {/* Período e Valor */}
+        {/* Período e Validade */}
         <Card>
           <CardHeader>
-            <CardTitle className="font-headline tracking-wide">Período e Valor</CardTitle>
+            <CardTitle className="font-headline tracking-wide flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Período e Validade
+            </CardTitle>
             <CardDescription>
-              Defina as datas e o valor do orçamento
+              Defina as datas da locação e validade do orçamento
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-1">
                   <Label htmlFor="startDate">
@@ -463,45 +566,229 @@ export default function NovaReservaPage() {
                   </p>
                 )}
               </div>
-            </div>
 
-            {calculatedPrice > 0 && (
-              <div className="flex items-center gap-2 p-4 bg-primary/10 rounded-lg border border-primary/20">
-                <Calculator className="h-5 w-5 text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Valor Calculado</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatCurrency(calculatedPrice)}
-                  </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="validUntil">
+                    Validade do Orçamento
+                  </Label>
+                  <HelpTooltip content="Até quando este orçamento é válido. Após esta data, expira automaticamente." />
                 </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="totalPrice">
-                  Valor Total <span className="text-destructive">*</span>
-                </Label>
-                <HelpTooltip content="Valor calculado automaticamente, mas pode ser ajustado para descontos ou acréscimos" />
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                  R$
-                </span>
                 <Input
-                  id="totalPrice"
-                  type="number"
-                  step="0.01"
-                  {...register("totalPrice", { valueAsNumber: true })}
-                  placeholder="0,00"
-                  className="pl-10"
+                  id="validUntil"
+                  type="date"
+                  {...register("validUntil")}
+                  min={new Date().toISOString().split("T")[0]}
                 />
               </div>
-              {errors.totalPrice && (
-                <p className="text-sm text-destructive">
-                  {errors.totalPrice.message}
-                </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Desconto e Frete */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide flex items-center gap-2">
+              <Percent className="h-5 w-5" />
+              Desconto e Frete
+            </CardTitle>
+            <CardDescription>
+              Configure descontos e valor do frete
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Desconto */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Tipo de Desconto</Label>
+                <Select
+                  value={watchDiscountType || ""}
+                  onValueChange={(value) => setValue("discountType", value as "PERCENTAGE" | "FIXED" | null || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem desconto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem desconto</SelectItem>
+                    <SelectItem value="PERCENTAGE">Porcentagem (%)</SelectItem>
+                    <SelectItem value="FIXED">Valor Fixo (R$)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="discountValue">
+                  {watchDiscountType === "PERCENTAGE" ? "Desconto (%)" : "Desconto (R$)"}
+                </Label>
+                <Input
+                  id="discountValue"
+                  type="number"
+                  step={watchDiscountType === "PERCENTAGE" ? "1" : "0.01"}
+                  {...register("discountValue", { valueAsNumber: true })}
+                  placeholder="0"
+                  disabled={!watchDiscountType}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="discountReason">Motivo do Desconto</Label>
+                <Input
+                  id="discountReason"
+                  {...register("discountReason")}
+                  placeholder="Ex: Cliente fidelidade"
+                  disabled={!watchDiscountType}
+                />
+              </div>
+            </div>
+
+            {/* Frete */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label className="flex items-center gap-1">
+                    <Truck className="h-4 w-4" />
+                    Tipo de Frete
+                  </Label>
+                </div>
+                <Select
+                  value={watchFreightType || ""}
+                  onValueChange={(value) => {
+                    setValue("freightType", value as "FREE" | "FIXED" | "BY_REGION" | null || null)
+                    setValue("freightValue", null)
+                    setValue("freightRegionId", null)
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem frete" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem frete</SelectItem>
+                    <SelectItem value="FREE">Frete Grátis</SelectItem>
+                    <SelectItem value="FIXED">Valor Fixo</SelectItem>
+                    <SelectItem value="BY_REGION">Por Região</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {watchFreightType === "FIXED" && (
+                <div className="space-y-2">
+                  <Label htmlFor="freightValue">Valor do Frete (R$)</Label>
+                  <Input
+                    id="freightValue"
+                    type="number"
+                    step="0.01"
+                    {...register("freightValue", { valueAsNumber: true })}
+                    placeholder="0,00"
+                  />
+                </div>
               )}
+
+              {watchFreightType === "BY_REGION" && (
+                <div className="space-y-2">
+                  <Label>Região</Label>
+                  <SearchableSelect
+                    options={regionOptions}
+                    value={watchFreightRegionId || undefined}
+                    onSelect={(value) => setValue("freightRegionId", value)}
+                    placeholder="Selecione uma região"
+                    searchPlaceholder="Buscar região..."
+                    emptyMessage="Nenhuma região cadastrada"
+                    loading={loadingRegions}
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Resumo de Valores */}
+        {subtotal > 0 && (
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+              <CardTitle className="font-headline tracking-wide flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-primary" />
+                Resumo de Valores
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal (Equipamento)</span>
+                  <span>{formatCurrency(subtotal)}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Desconto {watchDiscountType === "PERCENTAGE" ? `(${watchDiscountValue}%)` : ""}</span>
+                    <span>- {formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
+                {freightAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Frete</span>
+                    <span>+ {formatCurrency(freightAmount)}</span>
+                  </div>
+                )}
+                {watchFreightType === "FREE" && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>Frete Grátis</span>
+                    <span>R$ 0,00</span>
+                  </div>
+                )}
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total</span>
+                    <span className="text-primary">{formatCurrency(calculatedPrice)}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Multas */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-headline tracking-wide flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Multas Contratuais
+            </CardTitle>
+            <CardDescription>
+              Configure as multas por cancelamento e atraso na devolução
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="cancellationFeePercent">
+                    Multa por Cancelamento (%)
+                  </Label>
+                  <HelpTooltip content="Porcentagem do valor total cobrada em caso de cancelamento" />
+                </div>
+                <Input
+                  id="cancellationFeePercent"
+                  type="number"
+                  step="1"
+                  {...register("cancellationFeePercent", { valueAsNumber: true })}
+                  placeholder="10"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="lateFeePercent">
+                    Multa por Atraso (% por dia)
+                  </Label>
+                  <HelpTooltip content="Porcentagem do valor total cobrada por cada dia de atraso na devolução" />
+                </div>
+                <Input
+                  id="lateFeePercent"
+                  type="number"
+                  step="0.5"
+                  {...register("lateFeePercent", { valueAsNumber: true })}
+                  placeholder="2"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

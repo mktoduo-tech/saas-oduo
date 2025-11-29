@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { LandingPageSchemas } from "@/components/seo/JsonLd"
 import {
     ArrowRight,
     Check,
@@ -17,10 +18,37 @@ import {
     Bell,
     Smartphone,
     Clock,
-    HeadphonesIcon
+    HeadphonesIcon,
+    ChevronDown
 } from "lucide-react"
 
 export default function LandingPage() {
+    const faqs = [
+        {
+            question: "O que é o ODuoLoc?",
+            answer: "ODuoLoc é um sistema de gestão completo para locadoras de equipamentos. Com ele você pode gerenciar reservas, controlar estoque, cadastrar clientes, emitir notas fiscais e acompanhar o financeiro da sua empresa em uma única plataforma."
+        },
+        {
+            question: "Quanto custa o sistema para locadora?",
+            answer: "O ODuoLoc oferece 3 planos: Starter (R$ 997/mês) para quem está começando, Professional (R$ 1.497/mês) para empresas em crescimento e Enterprise (R$ 2.997/mês) para grandes operações. Todos incluem 14 dias de teste grátis."
+        },
+        {
+            question: "O sistema funciona para qualquer tipo de locadora?",
+            answer: "Sim! O ODuoLoc é flexível e atende diversos tipos de locadoras: equipamentos para construção, ferramentas, andaimes, geradores, containers, equipamentos audiovisuais, para eventos e muito mais."
+        },
+        {
+            question: "Como funciona o controle de estoque?",
+            answer: "O sistema controla automaticamente a disponibilidade dos equipamentos. Você cadastra a quantidade total e o sistema atualiza em tempo real: disponível, reservado, em manutenção e danificado."
+        },
+        {
+            question: "Posso emitir nota fiscal pelo sistema?",
+            answer: "Sim! O ODuoLoc possui integração completa para emissão de NFS-e (Nota Fiscal de Serviço Eletrônica) diretamente pelo sistema."
+        },
+        {
+            question: "Preciso instalar algum programa?",
+            answer: "Não! O ODuoLoc é 100% online (cloud). Você acessa pelo navegador de qualquer dispositivo - computador, tablet ou celular."
+        },
+    ]
     const features = [
         {
             icon: LayoutDashboard,
@@ -119,6 +147,8 @@ export default function LandingPage() {
     ]
 
     return (
+        <>
+        <LandingPageSchemas />
         <div className="min-h-screen bg-[#04132A] text-white overflow-hidden selection:bg-blue-500/30">
             {/* Background Effects */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -137,6 +167,7 @@ export default function LandingPage() {
                         <Link href="#features" className="hover:text-white transition-colors">Recursos</Link>
                         <Link href="#pricing" className="hover:text-white transition-colors">Preços</Link>
                         <Link href="#why" className="hover:text-white transition-colors">Por quê</Link>
+                        <Link href="#faq" className="hover:text-white transition-colors">FAQ</Link>
                     </div>
                     <div className="flex items-center gap-4">
                         <Link href="/login" className="text-sm font-medium text-gray-300 hover:text-white transition-colors hidden sm:block">
@@ -379,6 +410,33 @@ export default function LandingPage() {
                 </div>
             </section>
 
+            {/* FAQ Section */}
+            <section id="faq" className="relative z-10 py-24 bg-black/20">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-4">Perguntas Frequentes</h2>
+                        <p className="text-gray-400 max-w-2xl mx-auto text-lg">
+                            Tire suas dúvidas sobre o sistema para locadora de equipamentos
+                        </p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {faqs.map((faq, i) => (
+                            <details
+                                key={i}
+                                className="group p-6 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-300"
+                            >
+                                <summary className="flex items-center justify-between cursor-pointer list-none">
+                                    <h3 className="text-lg font-semibold text-white pr-4">{faq.question}</h3>
+                                    <ChevronDown className="h-5 w-5 text-gray-400 group-open:rotate-180 transition-transform" />
+                                </summary>
+                                <p className="mt-4 text-gray-400 leading-relaxed">{faq.answer}</p>
+                            </details>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
             {/* CTA Section */}
             <section className="relative z-10 py-24 px-4">
                 <div className="max-w-4xl mx-auto text-center p-12 rounded-3xl border border-white/10 bg-gradient-to-b from-blue-900/20 to-cyan-900/20 backdrop-blur-xl relative overflow-hidden">
@@ -417,5 +475,6 @@ export default function LandingPage() {
                 </div>
             </footer>
         </div>
+        </>
     )
 }
