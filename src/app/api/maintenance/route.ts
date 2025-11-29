@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const unitId = searchParams.get("unitId")
+    const equipmentId = searchParams.get("equipmentId")
     const status = searchParams.get("status")
     const type = searchParams.get("type")
     const startDate = searchParams.get("startDate")
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (unitId) where.unitId = unitId
+    if (equipmentId) {
+      where.unit = {
+        equipmentId: equipmentId,
+      }
+    }
     if (status) where.status = status
     if (type) where.type = type
     if (startDate || endDate) {

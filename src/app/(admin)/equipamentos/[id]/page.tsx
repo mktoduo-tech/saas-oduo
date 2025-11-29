@@ -186,13 +186,23 @@ export default function EditarEquipamentoPage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2">
+      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
         <Button variant="secondary" size="sm">
           Editar
         </Button>
         <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
           <Button variant="ghost" size="sm">
             Unidades/Serial
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/estoque`}>
+          <Button variant="ghost" size="sm">
+            Estoque
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/manutencao`}>
+          <Button variant="ghost" size="sm">
+            Manutenção
           </Button>
         </Link>
         <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>

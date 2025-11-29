@@ -16,6 +16,8 @@ export async function GET(
     }
 
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const includeUnits = searchParams.get("includeUnits") === "true"
 
     const equipment = await prisma.equipment.findFirst({
       where: {
@@ -26,6 +28,17 @@ export async function GET(
         rentalPeriods: {
           orderBy: { days: "asc" },
         },
+        ...(includeUnits && {
+          units: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              serialNumber: true,
+              internalCode: true,
+              status: true,
+            },
+          },
+        }),
       },
     })
 

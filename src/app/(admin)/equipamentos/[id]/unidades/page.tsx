@@ -321,19 +321,19 @@ export default function UnidadesPage({
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <Link href={`/equipamentos/${resolvedParams.id}`}>
+        <Link href="/equipamentos">
           <Button variant="ghost" size="sm" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para {equipment?.name}
+            Voltar
           </Button>
         </Link>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold mb-2 font-headline tracking-wide">
-              Unidades / Serial Numbers
+              Unidades - {equipment?.name}
             </h1>
             <p className="text-muted-foreground">
-              Gerencie as unidades físicas de {equipment?.name}
+              Gerencie as unidades físicas com números de série
             </p>
           </div>
           <Button onClick={() => setIsCreateOpen(true)}>
@@ -341,6 +341,38 @@ export default function UnidadesPage({
             Nova Unidade
           </Button>
         </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
+        <Link href={`/equipamentos/${resolvedParams.id}`}>
+          <Button variant="ghost" size="sm">
+            Editar
+          </Button>
+        </Link>
+        <Button variant="secondary" size="sm">
+          Unidades/Serial
+        </Button>
+        <Link href={`/equipamentos/${resolvedParams.id}/estoque`}>
+          <Button variant="ghost" size="sm">
+            Estoque
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/manutencao`}>
+          <Button variant="ghost" size="sm">
+            Manutenção
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
+          <Button variant="ghost" size="sm">
+            Financeiro
+          </Button>
+        </Link>
+        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
+          <Button variant="ghost" size="sm">
+            Documentos
+          </Button>
+        </Link>
       </div>
 
       {/* Stats Cards */}
