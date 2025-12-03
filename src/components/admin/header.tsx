@@ -144,7 +144,10 @@ export function Header({ user, onMenuClick }: HeaderProps) {
     }
 
     const handleLogout = async () => {
-        await signOut({ callbackUrl: "https://oduoloc.com.br/login" })
+        // Usa a URL base do ambiente ou constrói dinamicamente
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+                       (typeof window !== 'undefined' ? window.location.origin : 'https://oduoloc.com.br')
+        await signOut({ callbackUrl: `${baseUrl}/login` })
     }
 
     const handleNotificationClick = (notification: Notification) => {
