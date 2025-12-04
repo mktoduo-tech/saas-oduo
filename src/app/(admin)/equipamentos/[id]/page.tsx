@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ImageUpload } from "@/components/ui/image-upload"
-import { RentalPeriodInput, type RentalPeriod } from "@/components/equipment"
+import { RentalPeriodInput, type RentalPeriod, EquipmentTabs } from "@/components/equipment"
 import { toast } from "sonner"
 
 const equipmentSchema = z.object({
@@ -36,7 +36,7 @@ const equipmentSchema = z.object({
   category: z.string().min(2, "Categoria é obrigatória"),
   images: z.array(z.string()),
   pricePerHour: z.string().optional(),
-  quantity: z.string().min(1, "Quantidade é obrigatória"),
+  quantity: z.string().optional(), // Opcional para SERIALIZED, obrigatório para QUANTITY
   status: z.enum(["AVAILABLE", "RENTED", "MAINTENANCE", "INACTIVE"]),
 })
 
@@ -52,6 +52,7 @@ export default function EditarEquipamentoPage({
   const [isLoading, setIsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [rentalPeriods, setRentalPeriods] = useState<RentalPeriod[]>([])
+  const [trackingType, setTrackingType] = useState<"SERIALIZED" | "QUANTITY">("SERIALIZED")
 
   const {
     register,
@@ -104,6 +105,11 @@ export default function EditarEquipamentoPage({
           label: "Diária",
         }])
       }
+
+      // Carregar tipo de rastreamento
+      if (equipment.trackingType) {
+        setTrackingType(equipment.trackingType)
+      }
     } catch (error: any) {
       toast.error(error.message || "Erro ao carregar equipamento")
       router.push("/equipamentos")
@@ -119,23 +125,33 @@ export default function EditarEquipamentoPage({
       return
     }
 
+    // Validar quantidade para tipo QUANTITY
+    if (trackingType === "QUANTITY" && (!data.quantity || parseInt(data.quantity) < 1)) {
+      toast.error("Informe a quantidade do estoque")
+      return
+    }
+
     setIsLoading(true)
 
     try {
       // Converter strings para números
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: data.name,
         description: data.description || null,
         category: data.category,
         images: data.images,
         pricePerHour: data.pricePerHour ? parseFloat(data.pricePerHour) : null,
-        quantity: parseInt(data.quantity),
         status: data.status,
         rentalPeriods: rentalPeriods.map(p => ({
           days: p.days,
           price: p.price,
           label: p.label,
         })),
+      }
+
+      // Incluir quantity apenas para tipo QUANTITY
+      if (trackingType === "QUANTITY" && data.quantity) {
+        payload.quantity = parseInt(data.quantity)
       }
 
       const response = await fetch(`/api/equipments/${resolvedParams.id}`, {
@@ -186,36 +202,7 @@ export default function EditarEquipamentoPage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
-        <Button variant="secondary" size="sm">
-          Editar
-        </Button>
-        <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
-          <Button variant="ghost" size="sm">
-            Unidades/Serial
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/estoque`}>
-          <Button variant="ghost" size="sm">
-            Estoque
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/manutencao`}>
-          <Button variant="ghost" size="sm">
-            Manutenção
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
-          <Button variant="ghost" size="sm">
-            Financeiro
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
-          <Button variant="ghost" size="sm">
-            Documentos
-          </Button>
-        </Link>
-      </div>
+      <EquipmentTabs equipmentId={resolvedParams.id} activeTab="detalhes" trackingType={trackingType} />
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -310,23 +297,40 @@ export default function EditarEquipamentoPage({
               </p>
             </div>
 
-            {/* Quantidade e Status */}
+            {/* Quantidade (apenas para QUANTITY) e Status */}
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantidade *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  disabled={isLoading}
-                  {...register("quantity")}
-                />
-                {errors.quantity && (
-                  <p className="text-sm text-red-500">
-                    {errors.quantity.message}
+              {trackingType === "QUANTITY" && (
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Quantidade em Estoque *</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    min="1"
+                    disabled={isLoading}
+                    {...register("quantity")}
+                  />
+                  {errors.quantity && (
+                    <p className="text-sm text-red-500">
+                      {errors.quantity.message}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Total de unidades disponíveis deste equipamento
                   </p>
-                )}
-              </div>
+                </div>
+              )}
+
+              {trackingType === "SERIALIZED" && (
+                <div className="space-y-2">
+                  <Label>Tipo de Controle</Label>
+                  <div className="p-3 bg-zinc-900/50 rounded-md border border-zinc-800">
+                    <p className="text-sm font-medium">Por Número de Série</p>
+                    <p className="text-xs text-muted-foreground">
+                      O estoque é calculado a partir das unidades cadastradas
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>

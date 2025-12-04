@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { EquipmentTabs } from "@/components/equipment"
 
 interface Equipment {
   id: string
@@ -91,6 +92,8 @@ export default function EquipamentoManutencaoPage({
   const [maintenances, setMaintenances] = useState<Maintenance[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [unitFilter, setUnitFilter] = useState<string>("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -207,6 +210,13 @@ export default function EquipamentoManutencaoPage({
     return <span className={`px-2 py-1 rounded text-xs font-medium ${color}`}>{label}</span>
   }
 
+  // Filtrar manutenções no frontend
+  const filteredMaintenances = maintenances.filter((m) => {
+    if (typeFilter !== "all" && m.type !== typeFilter) return false
+    if (unitFilter !== "all" && m.unit.id !== unitFilter) return false
+    return true
+  })
+
   // Estatísticas
   const stats = {
     total: maintenances.length,
@@ -244,36 +254,7 @@ export default function EquipamentoManutencaoPage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
-        <Link href={`/equipamentos/${resolvedParams.id}`}>
-          <Button variant="ghost" size="sm">
-            Editar
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
-          <Button variant="ghost" size="sm">
-            Unidades/Serial
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/estoque`}>
-          <Button variant="ghost" size="sm">
-            Estoque
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm">
-          Manutenção
-        </Button>
-        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
-          <Button variant="ghost" size="sm">
-            Financeiro
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
-          <Button variant="ghost" size="sm">
-            Documentos
-          </Button>
-        </Link>
-      </div>
+      <EquipmentTabs equipmentId={resolvedParams.id} activeTab="manutencao" />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -327,24 +308,50 @@ export default function EquipamentoManutencaoPage({
       </div>
 
       {/* Actions & Filters */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-4 items-center">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[150px] bg-zinc-900/50 border-zinc-800">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filtrar por status" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="all">Todos Status</SelectItem>
               <SelectItem value="SCHEDULED">Agendadas</SelectItem>
               <SelectItem value="IN_PROGRESS">Em Andamento</SelectItem>
               <SelectItem value="COMPLETED">Concluídas</SelectItem>
               <SelectItem value="CANCELLED">Canceladas</SelectItem>
             </SelectContent>
           </Select>
-        </div>
 
-        <div className="flex gap-2">
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[150px] bg-zinc-900/50 border-zinc-800">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Tipos</SelectItem>
+              <SelectItem value="PREVENTIVE">Preventiva</SelectItem>
+              <SelectItem value="CORRECTIVE">Corretiva</SelectItem>
+              <SelectItem value="INSPECTION">Inspeção</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={unitFilter} onValueChange={setUnitFilter}>
+            <SelectTrigger className="w-[180px] bg-zinc-900/50 border-zinc-800">
+              <SelectValue placeholder="Unidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas Unidades</SelectItem>
+              {equipment?.units?.map((unit) => (
+                <SelectItem key={unit.id} value={unit.id}>
+                  {unit.serialNumber}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="flex-1" />
+
           <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Atualizar
@@ -394,10 +401,10 @@ export default function EquipamentoManutencaoPage({
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : maintenances.length === 0 ? (
+          ) : filteredMaintenances.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Wrench className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhuma manutenção encontrada</p>
+              <p>{maintenances.length === 0 ? "Nenhuma manutenção encontrada" : "Nenhuma manutenção encontrada com os filtros selecionados"}</p>
             </div>
           ) : (
             <Table>
@@ -414,7 +421,7 @@ export default function EquipamentoManutencaoPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {maintenances.map((maintenance) => (
+                {filteredMaintenances.map((maintenance) => (
                   <TableRow key={maintenance.id}>
                     <TableCell>
                       <div>

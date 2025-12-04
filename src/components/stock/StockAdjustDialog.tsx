@@ -25,7 +25,7 @@ interface StockAdjustDialogProps {
   currentStock: {
     total: number
     available: number
-    reserved: number
+    rented: number // Em locação
     maintenance: number
     damaged: number
   }
@@ -44,7 +44,7 @@ export function StockAdjustDialog({
 }: StockAdjustDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const minPossibleStock = currentStock.reserved + currentStock.maintenance + currentStock.damaged
+  const minPossibleStock = currentStock.rented + currentStock.maintenance + currentStock.damaged
 
   const form = useForm<StockAdjustmentInput>({
     resolver: zodResolver(stockAdjustmentSchema),
@@ -111,8 +111,8 @@ export function StockAdjustDialog({
               <span className="font-medium text-green-600">{currentStock.available}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Reservado:</span>
-              <span className="font-medium text-amber-600">{currentStock.reserved}</span>
+              <span className="text-muted-foreground">Em Locação:</span>
+              <span className="font-medium text-amber-600">{currentStock.rented}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Em Manutenção:</span>

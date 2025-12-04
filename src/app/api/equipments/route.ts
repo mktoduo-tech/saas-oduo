@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description, category, pricePerDay, pricePerHour, quantity, images, purchasePrice, purchaseDate, rentalPeriods } = body
+    const { name, description, category, pricePerDay, pricePerHour, quantity, images, purchasePrice, purchaseDate, rentalPeriods, trackingType } = body
 
     // rentalPeriods é obrigatório e deve ter pelo menos um período
     // pricePerDay agora é calculado a partir do primeiro período (fallback para compatibilidade)
@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
       ? sortedPeriods[0].price / sortedPeriods[0].days
       : parseFloat(pricePerDay)
 
+    // Determinar quantidade inicial do estoque
+    const initialQuantity = trackingType === "QUANTITY" ? (quantity || 1) : 0
+
     const equipment = await prisma.equipment.create({
       data: {
         name,
@@ -108,12 +111,20 @@ export async function POST(request: NextRequest) {
         category,
         pricePerDay: calculatedPricePerDay,
         pricePerHour: pricePerHour ? parseFloat(pricePerHour) : null,
-        quantity: quantity || 1,
+        quantity: initialQuantity,
         images: images || [],
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
         tenantId: session.user.tenantId,
         status: "AVAILABLE",
+        // Tipo de rastreamento: SERIALIZED (por serial) ou QUANTITY (por quantidade)
+        trackingType: trackingType || "SERIALIZED",
+        // Campos de estoque - para QUANTITY, usar a quantidade informada
+        totalStock: initialQuantity,
+        availableStock: initialQuantity,
+        reservedStock: 0,
+        maintenanceStock: 0,
+        damagedStock: 0,
         // Criar períodos de locação se fornecidos
         rentalPeriods: rentalPeriods?.length ? {
           create: rentalPeriods.map((period: { days: number; price: number; label?: string }) => ({

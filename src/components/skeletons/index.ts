@@ -1,0 +1,6 @@
+export { SkeletonStatCard } from "./skeleton-stat-card"
+export { SkeletonFilterCard } from "./skeleton-filter-card"
+export { SkeletonTable } from "./skeleton-table"
+export { DashboardSkeleton } from "./dashboard-skeleton"
+export { TablePageSkeleton } from "./table-page-skeleton"
+export { DetailPageSkeleton } from "./detail-page-skeleton"

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Plus, Pencil, Trash2, Search, Package, MoreHorizontal, BarChart3, FileText } from "lucide-react"
+import { Plus, Trash2, Search, Package, Eye, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -38,14 +38,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePlanLimits } from "@/hooks/usePlanLimits"
@@ -85,6 +77,8 @@ export default function EquipamentosPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<string>("name")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [equipmentToDelete, setEquipmentToDelete] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -108,7 +102,10 @@ export default function EquipamentosPage() {
   useEffect(() => {
     filterEquipments()
     setCurrentPage(1) // Reset para página 1 quando filtro muda
-  }, [search, statusFilter, equipments])
+  }, [search, statusFilter, categoryFilter, sortBy, equipments])
+
+  // Extrair categorias únicas dos equipamentos
+  const categories = [...new Set(equipments.map(eq => eq.category))].sort()
 
   const fetchEquipments = async () => {
     try {
@@ -141,6 +138,30 @@ export default function EquipamentosPage() {
     if (statusFilter !== "all") {
       filtered = filtered.filter((eq) => eq.status === statusFilter)
     }
+
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((eq) => eq.category === categoryFilter)
+    }
+
+    // Ordenação
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.name.localeCompare(b.name)
+        case "category":
+          return a.category.localeCompare(b.category)
+        case "priceAsc":
+          return (a.pricePerDay || 0) - (b.pricePerDay || 0)
+        case "priceDesc":
+          return (b.pricePerDay || 0) - (a.pricePerDay || 0)
+        case "newest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        case "oldest":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        default:
+          return 0
+      }
+    })
 
     setFilteredEquipments(filtered)
   }
@@ -204,36 +225,62 @@ export default function EquipamentosPage() {
       )}
 
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline tracking-wide">Filtros</CardTitle>
-          <CardDescription>
-            Busque e filtre seus equipamentos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
+      <Card className="bg-zinc-900/50 border-zinc-800">
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-4 items-center">
+            {/* Busca */}
+            <div className="flex-1 min-w-[200px]">
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nome ou categoria..."
+                  placeholder="Buscar equipamentos..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8"
+                  className="pl-10 bg-zinc-900/50 border-zinc-800"
                 />
               </div>
             </div>
+
+            {/* Filtro Status */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[150px] bg-zinc-900/50 border-zinc-800">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="all">Todos Status</SelectItem>
                 <SelectItem value="AVAILABLE">Disponível</SelectItem>
                 <SelectItem value="RENTED">Alugado</SelectItem>
                 <SelectItem value="MAINTENANCE">Manutenção</SelectItem>
                 <SelectItem value="INACTIVE">Inativo</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Filtro Categoria */}
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[150px] bg-zinc-900/50 border-zinc-800">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Categorias</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Ordenação */}
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[160px] bg-zinc-900/50 border-zinc-800">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Ordenar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Nome (A-Z)</SelectItem>
+                <SelectItem value="category">Categoria</SelectItem>
+                <SelectItem value="priceAsc">Menor Preço</SelectItem>
+                <SelectItem value="priceDesc">Maior Preço</SelectItem>
+                <SelectItem value="newest">Mais Recentes</SelectItem>
+                <SelectItem value="oldest">Mais Antigos</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -303,47 +350,27 @@ export default function EquipamentosPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/equipamentos/${equipment.id}`)}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/equipamentos/${equipment.id}/financeiro`)}
-                          >
-                            <BarChart3 className="h-4 w-4 mr-2" />
-                            Financeiro
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => router.push(`/equipamentos/${equipment.id}/documentos`)}
-                          >
-                            <FileText className="h-4 w-4 mr-2" />
-                            Documentos
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEquipmentToDelete(equipment.id)
-                              setDeleteDialogOpen(true)
-                            }}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/equipamentos/${equipment.id}`)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEquipmentToDelete(equipment.id)
+                            setDeleteDialogOpen(true)
+                          }}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

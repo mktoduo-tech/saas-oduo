@@ -63,6 +63,7 @@ import {
   MoreHorizontal,
 } from "lucide-react"
 import { toast } from "sonner"
+import { EquipmentTabs } from "@/components/equipment"
 import {
   LineChart,
   Line,
@@ -294,21 +295,7 @@ export default function EquipmentFinancialPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2">
-        <Link href={`/equipamentos/${id}`}>
-          <Button variant="ghost" size="sm">
-            Editar
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm">
-          Financeiro
-        </Button>
-        <Link href={`/equipamentos/${id}/documentos`}>
-          <Button variant="ghost" size="sm">
-            Documentos
-          </Button>
-        </Link>
-      </div>
+      <EquipmentTabs equipmentId={id} activeTab="financeiro" />
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

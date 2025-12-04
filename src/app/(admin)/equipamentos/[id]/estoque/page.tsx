@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { EquipmentTabs } from "@/components/equipment"
 
 interface Equipment {
   id: string
@@ -47,10 +48,11 @@ interface Equipment {
   category: string
   totalStock: number
   availableStock: number
-  reservedStock: number
+  rentedStock: number // Em locação (não reserva - locadora trabalha com orçamento → locação)
   maintenanceStock: number
   damagedStock: number
   minStockLevel: number
+  trackingType: "SERIALIZED" | "QUANTITY"
 }
 
 interface StockMovement {
@@ -90,7 +92,8 @@ export default function EquipamentoEstoquePage({
 
       if (eqRes.ok) {
         const data = await eqRes.json()
-        setEquipment(data)
+        // A API retorna { equipment, metrics } - extrair o equipment
+        setEquipment(data.equipment || data)
       }
 
       if (movRes.ok) {
@@ -112,7 +115,7 @@ export default function EquipamentoEstoquePage({
   const getStatusLabel = (status: string | null) => {
     const labels: Record<string, string> = {
       AVAILABLE: "Disponível",
-      RESERVED: "Reservado",
+      RENTED: "Em Locação",
       MAINTENANCE: "Manutenção",
       DAMAGED: "Avariado",
     }
@@ -186,36 +189,7 @@ export default function EquipamentoEstoquePage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
-        <Link href={`/equipamentos/${resolvedParams.id}`}>
-          <Button variant="ghost" size="sm">
-            Editar
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
-          <Button variant="ghost" size="sm">
-            Unidades/Serial
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm">
-          Estoque
-        </Button>
-        <Link href={`/equipamentos/${resolvedParams.id}/manutencao`}>
-          <Button variant="ghost" size="sm">
-            Manutenção
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
-          <Button variant="ghost" size="sm">
-            Financeiro
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
-          <Button variant="ghost" size="sm">
-            Documentos
-          </Button>
-        </Link>
-      </div>
+      <EquipmentTabs equipmentId={resolvedParams.id} activeTab="estoque" trackingType={equipment.trackingType} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-5">
@@ -249,9 +223,9 @@ export default function EquipamentoEstoquePage({
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Reservado</p>
+                <p className="text-sm text-muted-foreground">Em Locação</p>
                 <p className="text-2xl font-bold text-amber-600">
-                  {equipment.reservedStock}
+                  {equipment.rentedStock}
                 </p>
               </div>
               <Package className="h-8 w-8 text-amber-500" />
@@ -288,21 +262,39 @@ export default function EquipamentoEstoquePage({
         </Card>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-4">
-        <Button onClick={() => setMovementDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Movimentação
-        </Button>
-        <Button variant="outline" onClick={() => setAdjustDialogOpen(true)}>
-          <ArrowUpDown className="h-4 w-4 mr-2" />
-          Ajustar Estoque
-        </Button>
-        <Button variant="outline" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Atualizar
-        </Button>
-      </div>
+      {/* Actions - Apenas para equipamentos com controle por quantidade */}
+      {equipment.trackingType === "QUANTITY" && (
+        <div className="flex gap-4">
+          <Button onClick={() => setMovementDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Movimentação
+          </Button>
+          <Button variant="outline" onClick={() => setAdjustDialogOpen(true)}>
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            Ajustar Estoque
+          </Button>
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
+      )}
+
+      {/* Para equipamentos serializados, apenas botão de atualizar */}
+      {equipment.trackingType === "SERIALIZED" && (
+        <div className="flex gap-4">
+          <Button variant="outline" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+          <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
+            <Button>
+              <Package className="h-4 w-4 mr-2" />
+              Gerenciar Unidades
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Status do Estoque */}
       <Card>
@@ -320,52 +312,68 @@ export default function EquipamentoEstoquePage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-            <div className="flex h-full">
-              <div
-                className="bg-green-500 h-full"
-                style={{
-                  width: `${(equipment.availableStock / equipment.totalStock) * 100}%`,
-                }}
-                title={`Disponível: ${equipment.availableStock}`}
-              />
-              <div
-                className="bg-amber-500 h-full"
-                style={{
-                  width: `${(equipment.reservedStock / equipment.totalStock) * 100}%`,
-                }}
-                title={`Reservado: ${equipment.reservedStock}`}
-              />
-              <div
-                className="bg-orange-500 h-full"
-                style={{
-                  width: `${(equipment.maintenanceStock / equipment.totalStock) * 100}%`,
-                }}
-                title={`Manutenção: ${equipment.maintenanceStock}`}
-              />
-              <div
-                className="bg-red-500 h-full"
-                style={{
-                  width: `${(equipment.damagedStock / equipment.totalStock) * 100}%`,
-                }}
-                title={`Avariado: ${equipment.damagedStock}`}
-              />
+          {equipment.totalStock === 0 ? (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground">
+                Nenhuma unidade cadastrada ainda. Cadastre as unidades na aba "Unidades/Serial".
+              </p>
+              <Link href={`/equipamentos/${resolvedParams.id}/unidades`}>
+                <Button variant="outline" className="mt-2">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Cadastrar Unidades
+                </Button>
+              </Link>
             </div>
-          </div>
-          <div className="flex gap-4 mt-2 text-sm">
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-green-500 rounded" /> Disponível
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-amber-500 rounded" /> Reservado
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-orange-500 rounded" /> Manutenção
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-red-500 rounded" /> Avariado
-            </span>
-          </div>
+          ) : (
+            <>
+              <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                <div className="flex h-full">
+                  <div
+                    className="bg-green-500 h-full"
+                    style={{
+                      width: `${(equipment.availableStock / equipment.totalStock) * 100}%`,
+                    }}
+                    title={`Disponível: ${equipment.availableStock}`}
+                  />
+                  <div
+                    className="bg-amber-500 h-full"
+                    style={{
+                      width: `${(equipment.rentedStock / equipment.totalStock) * 100}%`,
+                    }}
+                    title={`Em Locação: ${equipment.rentedStock}`}
+                  />
+                  <div
+                    className="bg-orange-500 h-full"
+                    style={{
+                      width: `${(equipment.maintenanceStock / equipment.totalStock) * 100}%`,
+                    }}
+                    title={`Manutenção: ${equipment.maintenanceStock}`}
+                  />
+                  <div
+                    className="bg-red-500 h-full"
+                    style={{
+                      width: `${(equipment.damagedStock / equipment.totalStock) * 100}%`,
+                    }}
+                    title={`Avariado: ${equipment.damagedStock}`}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4 mt-2 text-sm">
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-green-500 rounded" /> Disponível
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-amber-500 rounded" /> Em Locação
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-orange-500 rounded" /> Manutenção
+                </span>
+                <span className="flex items-center gap-1">
+                  <div className="w-3 h-3 bg-red-500 rounded" /> Avariado
+                </span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -440,35 +448,39 @@ export default function EquipamentoEstoquePage({
         </CardContent>
       </Card>
 
-      {/* Dialogs */}
-      <StockMovementForm
-        equipmentId={equipment.id}
-        equipmentName={equipment.name}
-        currentStock={{
-          available: equipment.availableStock,
-          reserved: equipment.reservedStock,
-          maintenance: equipment.maintenanceStock,
-          damaged: equipment.damagedStock,
-        }}
-        open={movementDialogOpen}
-        onOpenChange={setMovementDialogOpen}
-        onSuccess={fetchData}
-      />
+      {/* Dialogs - Apenas para equipamentos com controle por quantidade */}
+      {equipment.trackingType === "QUANTITY" && (
+        <>
+          <StockMovementForm
+            equipmentId={equipment.id}
+            equipmentName={equipment.name}
+            currentStock={{
+              available: equipment.availableStock,
+              rented: equipment.rentedStock,
+              maintenance: equipment.maintenanceStock,
+              damaged: equipment.damagedStock,
+            }}
+            open={movementDialogOpen}
+            onOpenChange={setMovementDialogOpen}
+            onSuccess={fetchData}
+          />
 
-      <StockAdjustDialog
-        equipmentId={equipment.id}
-        equipmentName={equipment.name}
-        currentStock={{
-          total: equipment.totalStock,
-          available: equipment.availableStock,
-          reserved: equipment.reservedStock,
-          maintenance: equipment.maintenanceStock,
-          damaged: equipment.damagedStock,
-        }}
-        open={adjustDialogOpen}
-        onOpenChange={setAdjustDialogOpen}
-        onSuccess={fetchData}
-      />
+          <StockAdjustDialog
+            equipmentId={equipment.id}
+            equipmentName={equipment.name}
+            currentStock={{
+              total: equipment.totalStock,
+              available: equipment.availableStock,
+              rented: equipment.rentedStock,
+              maintenance: equipment.maintenanceStock,
+              damaged: equipment.damagedStock,
+            }}
+            open={adjustDialogOpen}
+            onOpenChange={setAdjustDialogOpen}
+            onSuccess={fetchData}
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -63,6 +63,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { EquipmentTabs } from "@/components/equipment"
 
 interface Equipment {
   id: string
@@ -344,39 +345,32 @@ export default function UnidadesPage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2 overflow-x-auto">
-        <Link href={`/equipamentos/${resolvedParams.id}`}>
-          <Button variant="ghost" size="sm">
-            Editar
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm">
-          Unidades/Serial
-        </Button>
-        <Link href={`/equipamentos/${resolvedParams.id}/estoque`}>
-          <Button variant="ghost" size="sm">
-            Estoque
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/manutencao`}>
-          <Button variant="ghost" size="sm">
-            Manutenção
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
-          <Button variant="ghost" size="sm">
-            Financeiro
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/documentos`}>
-          <Button variant="ghost" size="sm">
-            Documentos
-          </Button>
-        </Link>
-      </div>
+      <EquipmentTabs equipmentId={resolvedParams.id} activeTab="unidades" />
+
+      {/* Welcome Card - quando não tem unidades */}
+      {units.length === 0 && (
+        <Card className="border-cyan-500/50 bg-cyan-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-cyan-400">
+              <Package className="h-5 w-5" />
+              Cadastre as Unidades Físicas
+            </CardTitle>
+            <CardDescription>
+              Agora que o equipamento foi criado, cadastre cada unidade física (número de série).
+              Isso permite rastrear exatamente qual equipamento foi para qual cliente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Cadastrar Primeira Unidade
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
-      {stats && (
+      {stats && stats.total > 0 && (
         <div className="grid gap-4 md:grid-cols-6">
           <Card>
             <CardHeader className="pb-2">

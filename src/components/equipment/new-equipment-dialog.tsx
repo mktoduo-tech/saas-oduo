@@ -13,6 +13,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -26,8 +33,8 @@ const quickEquipmentSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   category: z.string().min(1, "Categoria é obrigatória"),
   description: z.string().optional().nullable(),
-  pricePerDay: z.number().min(0, "Preço deve ser maior ou igual a 0"),
-  totalStock: z.number().int().min(1, "Quantidade deve ser maior que 0"),
+  pricePerDay: z.number().min(0.01, "Preço deve ser maior que 0"),
+  quantity: z.number().min(1, "Quantidade deve ser pelo menos 1").optional(),
 })
 
 type QuickEquipmentForm = z.infer<typeof quickEquipmentSchema>
@@ -52,38 +59,58 @@ export function NewEquipmentDialog({
   onCreated,
 }: NewEquipmentDialogProps) {
   const [loading, setLoading] = useState(false)
+  const [trackingType, setTrackingType] = useState<"SERIALIZED" | "QUANTITY">("QUANTITY")
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<QuickEquipmentForm>({
     resolver: zodResolver(quickEquipmentSchema),
     defaultValues: {
-      totalStock: 1,
       pricePerDay: 0,
+      quantity: 1,
     },
   })
 
+  const quantity = watch("quantity")
+
   const onSubmit = async (data: QuickEquipmentForm): Promise<void> => {
     try {
+      // Validar quantidade para tipo QUANTITY
+      if (trackingType === "QUANTITY" && (!data.quantity || data.quantity < 1)) {
+        toast.error("Informe a quantidade do estoque")
+        return
+      }
+
       setLoading(true)
+
+      // Converter pricePerDay para rentalPeriods (formato esperado pela API)
+      const payload = {
+        name: data.name,
+        category: data.category,
+        description: data.description,
+        trackingType: trackingType,
+        quantity: trackingType === "QUANTITY" ? (data.quantity || 1) : 0,
+        rentalPeriods: [
+          { days: 1, price: data.pricePerDay, label: "Diária" },
+        ],
+      }
 
       const response = await fetch("/api/equipments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          availableStock: data.totalStock,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
         const result = await response.json()
         toast.success("Equipamento cadastrado!")
-        onCreated(result.equipment)
+        onCreated(result)
         reset()
+        setTrackingType("QUANTITY")
         onClose()
       } else {
         const error = await response.json()
@@ -99,6 +126,7 @@ export function NewEquipmentDialog({
 
   const handleClose = () => {
     reset()
+    setTrackingType("QUANTITY")
     onClose()
   }
 
@@ -154,50 +182,73 @@ export function NewEquipmentDialog({
             />
           </div>
 
-          {/* Preço e Quantidade */}
-          <div className="grid gap-4 grid-cols-2">
-            <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <Label>
-                  Valor Diária <span className="text-destructive">*</span>
-                </Label>
-                <HelpTooltip content="Valor da diária de locação" />
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                  R$
-                </span>
-                <Input
-                  {...register("pricePerDay", { valueAsNumber: true })}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0,00"
-                  className="pl-10"
-                />
-              </div>
-              {errors.pricePerDay && (
-                <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
-              )}
+          {/* Tipo de Controle */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <Label>
+                Tipo de Controle <span className="text-destructive">*</span>
+              </Label>
+              <HelpTooltip content="Por quantidade: controle apenas do total. Por serial: cada unidade tem código único." />
             </div>
+            <Select
+              value={trackingType}
+              onValueChange={(value) => setTrackingType(value as "SERIALIZED" | "QUANTITY")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="QUANTITY">Por Quantidade</SelectItem>
+                <SelectItem value="SERIALIZED">Por Número de Série</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
+          {/* Quantidade (apenas para QUANTITY) */}
+          {trackingType === "QUANTITY" && (
             <div className="space-y-2">
               <div className="flex items-center gap-1">
                 <Label>
                   Quantidade <span className="text-destructive">*</span>
                 </Label>
-                <HelpTooltip content="Quantidade total no estoque" />
+                <HelpTooltip content="Quantidade total em estoque" />
               </div>
               <Input
-                {...register("totalStock", { valueAsNumber: true })}
+                {...register("quantity", { valueAsNumber: true })}
                 type="number"
                 min="1"
                 placeholder="1"
               />
-              {errors.totalStock && (
-                <p className="text-sm text-destructive">{errors.totalStock.message}</p>
+              {errors.quantity && (
+                <p className="text-sm text-destructive">{errors.quantity.message}</p>
               )}
             </div>
+          )}
+
+          {/* Preço */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-1">
+              <Label>
+                Valor Diária <span className="text-destructive">*</span>
+              </Label>
+              <HelpTooltip content="Valor da diária de locação" />
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                R$
+              </span>
+              <Input
+                {...register("pricePerDay", { valueAsNumber: true })}
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0,00"
+                className="pl-10"
+              />
+            </div>
+            {errors.pricePerDay && (
+              <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
+            )}
           </div>
 
           <DialogFooter>

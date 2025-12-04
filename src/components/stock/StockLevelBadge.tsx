@@ -18,16 +18,25 @@ export function StockLevelBadge({
   showNumbers = true,
   size = "md",
 }: StockLevelBadgeProps) {
-  const percentage = total > 0 ? (available / total) * 100 : 0
-  const isOutOfStock = available === 0
-  const isLow = available <= minLevel && available > 0
-  const isCritical = available > 0 && available <= minLevel / 2
+  // Tratar valores undefined/null
+  const safeAvailable = available ?? 0
+  const safeTotal = total ?? 0
 
-  let status: "critical" | "low" | "normal" | "out"
+  const percentage = safeTotal > 0 ? (safeAvailable / safeTotal) * 100 : 0
+  const hasNoUnits = safeTotal === 0
+  const isOutOfStock = safeAvailable === 0 && safeTotal > 0
+  const isLow = safeAvailable <= minLevel && safeAvailable > 0
+  const isCritical = safeAvailable > 0 && safeAvailable <= minLevel / 2
+
+  let status: "critical" | "low" | "normal" | "out" | "empty"
   let label: string
   let variant: "default" | "secondary" | "destructive" | "outline"
 
-  if (isOutOfStock) {
+  if (hasNoUnits) {
+    status = "empty"
+    label = "Sem unidades"
+    variant = "outline"
+  } else if (isOutOfStock) {
     status = "out"
     label = "Esgotado"
     variant = "destructive"
@@ -59,10 +68,11 @@ export function StockLevelBadge({
         status === "critical" && "bg-red-500 hover:bg-red-600",
         status === "low" && "bg-yellow-500 hover:bg-yellow-600 text-white",
         status === "normal" && "bg-green-100 text-green-800 border-green-200",
-        status === "out" && "bg-red-600 hover:bg-red-700"
+        status === "out" && "bg-red-600 hover:bg-red-700",
+        status === "empty" && "bg-zinc-500 hover:bg-zinc-600 text-white border-zinc-400"
       )}
     >
-      {showNumbers ? `${available}/${total}` : label}
+      {showNumbers ? `${safeAvailable}/${safeTotal}` : label}
     </Badge>
   )
 }

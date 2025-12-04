@@ -36,7 +36,7 @@ interface StockMovementFormProps {
   equipmentName: string
   currentStock: {
     available: number
-    reserved: number
+    rented: number // Em locação (não reserva)
     maintenance: number
     damaged: number
   }
@@ -135,8 +135,8 @@ export function StockMovementForm({
               <div className="text-xs text-muted-foreground">Disponível</div>
             </div>
             <div className="text-center">
-              <div className="font-medium text-amber-600">{currentStock.reserved}</div>
-              <div className="text-xs text-muted-foreground">Reservado</div>
+              <div className="font-medium text-amber-600">{currentStock.rented}</div>
+              <div className="text-xs text-muted-foreground">Em Locação</div>
             </div>
             <div className="text-center">
               <div className="font-medium text-orange-600">{currentStock.maintenance}</div>

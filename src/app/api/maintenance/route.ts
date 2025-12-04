@@ -8,9 +8,9 @@ const createMaintenanceSchema = z.object({
   type: z.enum(["PREVENTIVE", "CORRECTIVE", "INSPECTION"]),
   description: z.string().min(1, "Descrição é obrigatória"),
   scheduledDate: z.string().min(1, "Data é obrigatória"),
-  cost: z.number().optional(),
-  vendor: z.string().optional(),
-  notes: z.string().optional(),
+  cost: z.number().nullish(), // Aceita number, null ou undefined
+  vendor: z.string().nullish(),
+  notes: z.string().nullish(),
 })
 
 // GET - Listar manutenções (com filtros)

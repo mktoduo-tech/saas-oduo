@@ -73,7 +73,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { name, description, category, pricePerDay, pricePerHour, quantity, status, images, rentalPeriods } = body
+    const { name, description, category, pricePerDay, pricePerHour, quantity, status, images, rentalPeriods, trackingType } = body
 
     // Verificar se equipamento existe e pertence ao tenant (incluindo campos de estoque)
     const existingEquipment = await prisma.equipment.findFirst({
@@ -198,6 +198,7 @@ export async function PUT(
           ...(quantity !== undefined && { quantity: parseInt(quantity) }),
           ...(status && { status }),
           ...(images && { images }),
+          ...(trackingType && { trackingType }),
           ...stockUpdate,
         },
         include: {

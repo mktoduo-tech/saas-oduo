@@ -367,7 +367,7 @@ export default function EstoqueDetailPage() {
         equipmentName={equipment.name}
         currentStock={{
           available: equipment.availableStock,
-          reserved: equipment.reservedStock,
+          rented: equipment.reservedStock,
           maintenance: equipment.maintenanceStock,
           damaged: equipment.damagedStock,
         }}
@@ -382,7 +382,7 @@ export default function EstoqueDetailPage() {
         currentStock={{
           total: equipment.totalStock,
           available: equipment.availableStock,
-          reserved: equipment.reservedStock,
+          rented: equipment.reservedStock,
           maintenance: equipment.maintenanceStock,
           damaged: equipment.damagedStock,
         }}

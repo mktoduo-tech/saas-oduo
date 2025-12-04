@@ -140,10 +140,10 @@ export default function LandingPage() {
     ]
 
     const stats = [
-        { value: "99.9%", label: "Uptime" },
-        { value: "500+", label: "Locadoras Ativas" },
-        { value: "50k+", label: "Reservas/Mês" },
-        { value: "24/7", label: "Suporte" }
+        { value: "99.9%", label: "Uptime Garantido" },
+        { value: "100%", label: "Cloud / Online" },
+        { value: "14 dias", label: "Teste Grátis" },
+        { value: "Suporte", label: "Dedicado" }
     ]
 
     return (
@@ -235,7 +235,7 @@ export default function LandingPage() {
                     <div className="text-center mb-16">
                         <h2 className="text-3xl sm:text-4xl font-bold mb-4">Por que escolher a ODuoLoc?</h2>
                         <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-                            Mais de 500 locadoras confiam em nossa plataforma para gerenciar seus negócios
+                            A plataforma completa para modernizar a gestao da sua locadora de equipamentos
                         </p>
                     </div>
 
@@ -302,10 +302,12 @@ export default function LandingPage() {
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
                                 {[
-                                    "Até 2 usuários",
-                                    "Até 50 equipamentos",
-                                    "200 reservas/mês",
-                                    "5GB de armazenamento"
+                                    "Ate 2 usuarios",
+                                    "Ate 50 equipamentos",
+                                    "200 reservas/mes",
+                                    "5GB de armazenamento",
+                                    "Gestao de estoque",
+                                    "Multi-usuarios"
                                 ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
@@ -339,10 +341,15 @@ export default function LandingPage() {
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
                                 {[
-                                    "Até 5 usuários",
-                                    "Até 200 equipamentos",
-                                    "1000 reservas/mês",
-                                    "20GB de armazenamento"
+                                    "Ate 5 usuarios",
+                                    "Ate 200 equipamentos",
+                                    "1000 reservas/mes",
+                                    "20GB de armazenamento",
+                                    "Emissao de NFS-e",
+                                    "Modulo Financeiro",
+                                    "Relatorios Avancados",
+                                    "API de Integracao",
+                                    "Integracao WhatsApp"
                                 ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-white">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
@@ -371,10 +378,13 @@ export default function LandingPage() {
                             </div>
                             <ul className="space-y-3 mb-8 flex-1">
                                 {[
-                                    "Até 10 usuários",
+                                    "Ate 10 usuarios",
                                     "Equipamentos ilimitados",
                                     "Reservas ilimitadas",
-                                    "500GB de armazenamento"
+                                    "500GB de armazenamento",
+                                    "Tudo do Professional +",
+                                    "Webhooks em tempo real",
+                                    "Dominios personalizados"
                                 ].map((feature, i) => (
                                     <li key={i} className="flex items-center gap-3 text-sm text-gray-300">
                                         <Check className="h-5 w-5 text-blue-400 flex-shrink-0" />
@@ -442,9 +452,9 @@ export default function LandingPage() {
                 <div className="max-w-4xl mx-auto text-center p-12 rounded-3xl border border-white/10 bg-gradient-to-b from-blue-900/20 to-cyan-900/20 backdrop-blur-xl relative overflow-hidden">
                     <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0))]" />
                     <div className="relative z-10">
-                        <h2 className="text-3xl sm:text-4xl font-bold mb-6">Pronto para transformar sua gestão?</h2>
+                        <h2 className="text-3xl sm:text-4xl font-bold mb-6">Pronto para transformar sua gestao?</h2>
                         <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">
-                            Junte-se a centenas de locadoras que já modernizaram seus processos com a ODuoLoc.
+                            Modernize os processos da sua locadora com a plataforma mais completa do mercado.
                         </p>
                         <Link href="/planos">
                             <Button size="lg" className="h-14 px-8 text-lg bg-white text-black hover:bg-gray-200 border-0 shadow-[0_0_40px_-10px_rgba(255,255,255,0.3)]">

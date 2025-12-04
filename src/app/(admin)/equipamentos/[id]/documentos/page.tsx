@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import { EquipmentTabs } from "@/components/equipment"
 
 interface Document {
   id: string
@@ -431,21 +432,7 @@ export default function DocumentosEquipamentoPage({
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b pb-2">
-        <Link href={`/equipamentos/${resolvedParams.id}`}>
-          <Button variant="ghost" size="sm">
-            Editar
-          </Button>
-        </Link>
-        <Link href={`/equipamentos/${resolvedParams.id}/financeiro`}>
-          <Button variant="ghost" size="sm">
-            Financeiro
-          </Button>
-        </Link>
-        <Button variant="secondary" size="sm">
-          Documentos
-        </Button>
-      </div>
+      <EquipmentTabs equipmentId={resolvedParams.id} activeTab="documentos" />
 
       {/* Documents List */}
       <Card>

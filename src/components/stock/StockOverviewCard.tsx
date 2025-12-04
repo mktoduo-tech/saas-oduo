@@ -38,9 +38,9 @@ export function StockOverviewCard({ stats, className }: StockOverviewCardProps) 
       bgColor: "bg-green-100",
     },
     {
-      title: "Reservado",
+      title: "Em Locação",
       value: stats.totalReserved,
-      subtitle: "Em locação",
+      subtitle: "Atualmente locado",
       icon: Package,
       color: "text-amber-600",
       bgColor: "bg-amber-100",

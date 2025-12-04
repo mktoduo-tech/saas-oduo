@@ -19,6 +19,7 @@ import {
     FileText,
     AlertTriangle,
     Clock,
+    TrendingUp,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -116,6 +117,12 @@ export function Sidebar({ className }: SidebarProps) {
             icon: Users,
             href: "/clientes",
             color: "text-emerald-400",
+        },
+        {
+            label: "Comercial",
+            icon: TrendingUp,
+            href: "/comercial",
+            color: "text-lime-400",
         },
         {
             label: "Equipamentos",

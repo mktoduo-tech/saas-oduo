@@ -36,8 +36,6 @@ const equipmentSchema = z.object({
   category: z.string().min(2, "Categoria é obrigatória"),
   images: z.array(z.string()),
   pricePerHour: z.string().optional(),
-  quantity: z.string().min(1, "Quantidade é obrigatória"),
-  status: z.enum(["AVAILABLE", "RENTED", "MAINTENANCE", "INACTIVE"]),
 })
 
 type EquipmentFormData = z.infer<typeof equipmentSchema>
@@ -46,6 +44,8 @@ export default function NovoEquipamentoPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [rentalPeriods, setRentalPeriods] = useState<RentalPeriod[]>([])
+  const [trackingType, setTrackingType] = useState<"SERIALIZED" | "QUANTITY">("SERIALIZED")
+  const [quantity, setQuantity] = useState<number>(1)
 
   const {
     register,
@@ -56,19 +56,22 @@ export default function NovoEquipamentoPage() {
   } = useForm<EquipmentFormData>({
     resolver: zodResolver(equipmentSchema),
     defaultValues: {
-      status: "AVAILABLE",
-      quantity: "1",
       images: [],
     },
   })
 
-  const status = watch("status")
   const images = watch("images")
 
   const onSubmit = async (data: EquipmentFormData) => {
     // Validar períodos de locação
     if (rentalPeriods.length === 0) {
       toast.error("Adicione pelo menos um período de locação")
+      return
+    }
+
+    // Validar quantidade para tipo QUANTITY
+    if (trackingType === "QUANTITY" && quantity < 1) {
+      toast.error("Informe a quantidade do estoque")
       return
     }
 
@@ -82,9 +85,11 @@ export default function NovoEquipamentoPage() {
         category: data.category,
         images: data.images,
         pricePerHour: data.pricePerHour ? parseFloat(data.pricePerHour) : null,
-        quantity: parseInt(data.quantity),
-        status: data.status,
+        status: "AVAILABLE",
         rentalPeriods: rentalPeriods,
+        trackingType: trackingType,
+        // Para tipo QUANTITY, enviar a quantidade inicial do estoque
+        quantity: trackingType === "QUANTITY" ? quantity : 0,
       }
 
       const response = await fetch("/api/equipments", {
@@ -98,8 +103,17 @@ export default function NovoEquipamentoPage() {
         throw new Error(error.error || "Erro ao criar equipamento")
       }
 
-      toast.success("Equipamento criado com sucesso!")
-      router.push("/equipamentos")
+      const createdEquipment = await response.json()
+
+      if (trackingType === "SERIALIZED") {
+        toast.success("Equipamento criado! Agora cadastre as unidades físicas (números de série).")
+        // Redirecionar para a página de unidades do equipamento criado
+        router.push(`/equipamentos/${createdEquipment.id}/unidades`)
+      } else {
+        toast.success("Equipamento criado com sucesso!")
+        // Redirecionar para a página de estoque para definir quantidade
+        router.push(`/equipamentos/${createdEquipment.id}/estoque`)
+      }
       router.refresh()
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar equipamento")
@@ -179,6 +193,62 @@ export default function NovoEquipamentoPage() {
               )}
             </div>
 
+            {/* Tipo de Rastreamento */}
+            <div className="space-y-2">
+              <Label>Tipo de Controle de Estoque *</Label>
+              <Select
+                value={trackingType}
+                onValueChange={(value) => setTrackingType(value as "SERIALIZED" | "QUANTITY")}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="max-w-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SERIALIZED">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Por Número de Série</span>
+                      <span className="text-xs text-muted-foreground">
+                        Cada unidade tem um serial único (ex: ferramentas, máquinas)
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="QUANTITY">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Por Quantidade</span>
+                      <span className="text-xs text-muted-foreground">
+                        Controle apenas por quantidade total (ex: mesas, cadeiras)
+                      </span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {trackingType === "SERIALIZED"
+                  ? "Você poderá cadastrar cada unidade com número de série após criar o equipamento."
+                  : "Apenas controle de quantidade disponível, sem rastreio individual."}
+              </p>
+            </div>
+
+            {/* Quantidade - Apenas para tipo QUANTITY */}
+            {trackingType === "QUANTITY" && (
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantidade em Estoque *</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                  disabled={isLoading}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Informe a quantidade total disponível deste equipamento
+                </p>
+              </div>
+            )}
+
             {/* Imagens */}
             <div className="space-y-2">
               <Label>Imagens do Equipamento</Label>
@@ -215,49 +285,6 @@ export default function NovoEquipamentoPage() {
               <p className="text-xs text-muted-foreground">
                 Preencha apenas se oferecer locação por hora
               </p>
-            </div>
-
-            {/* Quantidade e Status */}
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantidade *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  disabled={isLoading}
-                  {...register("quantity")}
-                />
-                {errors.quantity && (
-                  <p className="text-sm text-red-500">
-                    {errors.quantity.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status *</Label>
-                <Select
-                  value={status}
-                  onValueChange={(value) =>
-                    setValue("status", value as any)
-                  }
-                  disabled={isLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="AVAILABLE">Disponível</SelectItem>
-                    <SelectItem value="RENTED">Alugado</SelectItem>
-                    <SelectItem value="MAINTENANCE">Manutenção</SelectItem>
-                    <SelectItem value="INACTIVE">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
-                {errors.status && (
-                  <p className="text-sm text-red-500">{errors.status.message}</p>
-                )}
-              </div>
             </div>
 
             {/* Actions */}
